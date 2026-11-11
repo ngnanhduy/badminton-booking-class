@@ -1,0 +1,61 @@
+# Run the whole app (backend + frontend in one container) with Docker Compose.
+#
+#   docker compose up --build            → app on http://localhost:3000, using DATABASE_URL
+#                                           from backend/.env (e.g. your Supabase database)
+#   docker compose --profile local-db up --build
+#                                         → also starts a local PostgreSQL + pgAdmin
+#                                           (set DATABASE_URL=postgres://booking:<password>@postgres:5432/booking)
+#
+# Secrets come from backend/.env (git-ignored, docker-ignored). Ports bind to 127.0.0.1 only.
+
+services:
+  app:
+    build: .
+    image: badminton-booking:latest
+    restart: unless-stopped
+    env_file: backend/.env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      CORS_ORIGINS: http://localhost:3000
+      PUBLIC_URL: http://localhost:3000
+    ports:
+      - '127.0.0.1:3000:3000'
+    volumes:
+      # Only used when DATABASE_URL is empty (embedded database).
+      - appdata:/app/backend/data
+
+  postgres:
+    profiles: [local-db]
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: booking
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local-only}
+      POSTGRES_DB: booking
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U booking -d booking']
+      interval: 5s
+      retries: 10
+
+  pgadmin:
+    profiles: [local-db]
+    image: dpage/pgadmin4:9
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-change-me-local-only}
+    ports:
+      - '127.0.0.1:5050:80'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  appdata:
+  pgdata:

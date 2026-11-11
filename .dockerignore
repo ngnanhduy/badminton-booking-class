@@ -1,0 +1,21 @@
+# Keep the build context small and never send secrets or personal data to Docker.
+**/node_modules
+**/dist
+**/coverage
+**/.eslintcache
+**/*.tsbuildinfo
+**/*.log
+
+.git
+.vscode
+.idea
+docs
+
+# Secrets and data
+.env
+**/.env
+**/.env.local
+backend/data
+backend/exports
+*.pem
+*.crt

@@ -1,0 +1,25 @@
+{
+  "name": "badminton-booking-monorepo",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Weekly badminton class booking: Vue 3 frontend + Fastify/PostgreSQL backend.",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "run-p dev:backend dev:frontend",
+    "dev:backend": "npm run dev -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+    "build": "npm run build -w backend && npm run build -w frontend",
+    "test": "npm run test -w backend && npm run test -w frontend",
+    "lint": "npm run lint -w backend && npm run lint -w frontend",
+    "type-check": "npm run type-check -w backend && npm run type-check -w frontend"
+  },
+  "devDependencies": {
+    "npm-run-all2": "^9.0.3"
+  },
+  "engines": {
+    "node": "^22.18.0 || >=24.12.0"
+  }
+}

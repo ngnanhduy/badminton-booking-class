@@ -1,0 +1,110 @@
+@import 'tailwindcss';
+
+/* Dark mode follows the `.dark` class on <html> (managed by useColorMode). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans:
+    'Be Vietnam Pro', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji';
+
+  /* Brand: court green. Swap these values to re-theme the whole app. */
+  --color-brand-50: oklch(0.979 0.021 166.1);
+  --color-brand-100: oklch(0.95 0.052 163.1);
+  --color-brand-200: oklch(0.905 0.093 164.2);
+  --color-brand-300: oklch(0.845 0.143 165);
+  --color-brand-400: oklch(0.765 0.177 163.2);
+  --color-brand-500: oklch(0.696 0.17 162.5);
+  --color-brand-600: oklch(0.596 0.145 163.2);
+  --color-brand-700: oklch(0.508 0.118 165.6);
+  --color-brand-800: oklch(0.432 0.095 166.9);
+  --color-brand-900: oklch(0.378 0.077 168.9);
+  --color-brand-950: oklch(0.262 0.051 172.6);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --animate-fade-in-up: fade-in-up 0.5s var(--ease-out-expo) both;
+  --animate-pop: pop 0.55s var(--ease-spring) both;
+
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
+
+/* Faint court-line grid used behind the hero. */
+@utility bg-court-grid {
+  background-image:
+    linear-gradient(to right, --alpha(var(--color-zinc-500) / 9%) 1px, transparent 1px),
+    linear-gradient(to bottom, --alpha(var(--color-zinc-500) / 9%) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-padding-top: 5rem;
+  }
+
+  body {
+    @apply min-h-dvh bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    @apply bg-brand-200 text-brand-950 dark:bg-brand-800 dark:text-white;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-500;
+  }
+
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Route transition */
+.page-enter-active,
+.page-leave-active {
+  transition:
+    opacity 0.25s var(--ease-out-expo),
+    transform 0.25s var(--ease-out-expo);
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.page-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

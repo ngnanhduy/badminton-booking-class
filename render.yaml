@@ -1,0 +1,41 @@
+# Render Blueprint: Dashboard → New → Blueprint → pick this repository.
+# Builds the Dockerfile and runs it as a free web service in Singapore (close to Vietnam).
+# Values marked `sync: false` are secrets: Render asks for them when you create the Blueprint.
+services:
+  - type: web
+    name: badminton-booking
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Supabase → Connect → "Session pooler" connection string (IPv4).
+      - key: DATABASE_URL
+        sync: false
+      # `verify` + the Supabase CA certificate (Secret File) is the most secure option;
+      # `require` encrypts the connection without verifying the certificate.
+      - key: DATABASE_SSL
+        value: require
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: BLIND_INDEX_KEY
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
+      # Your public URL, e.g. https://badminton-booking.onrender.com
+      - key: CORS_ORIGINS
+        sync: false
+      - key: CONTROLLER_NAME
+        value: Lớp Cầu Lông
+      - key: CONTROLLER_CONTACT
+        sync: false
+      - key: RETENTION_DAYS
+        value: '180'
+      # Your public URL, e.g. https://badminton-booking.onrender.com (no trailing slash).
+      # https → admin session cookies are Secure.
+      - key: PUBLIC_URL
+        sync: false
