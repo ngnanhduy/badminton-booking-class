@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 
 import { pgConnectionOptions } from '../src/db/ssl.js'
-import { createTestApp } from './helpers.js'
+import { createTestApp, testConfig } from './helpers.js'
 
 describe('PostgreSQL TLS options', () => {
   const supabase =
@@ -103,5 +103,19 @@ describe('serving the frontend (single container)', () => {
     const res = await ctx.app.inject({ method: 'GET', url: '/api/v1/nope' })
     expect(res.statusCode).toBe(404)
     expect(res.json().error.code).toBe('NOT_FOUND')
+  })
+})
+
+describe('database URL from the Vercel ↔ Supabase integration', () => {
+  const pooled = 'postgres://postgres.abcd:pw@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
+
+  it('uses POSTGRES_URL when DATABASE_URL is not set', () => {
+    expect(testConfig({ POSTGRES_URL: pooled }).DATABASE_URL).toBe(pooled)
+    expect(testConfig({ DATABASE_URL: '  ', POSTGRES_URL: pooled }).DATABASE_URL).toBe(pooled)
+  })
+
+  it('prefers DATABASE_URL when both are set', () => {
+    const own = 'postgres://me:pw@example.com:5432/app'
+    expect(testConfig({ DATABASE_URL: own, POSTGRES_URL: pooled }).DATABASE_URL).toBe(own)
   })
 })

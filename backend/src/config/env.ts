@@ -13,6 +13,7 @@ const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   HOST: z.string().default('127.0.0.1'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  /** Falls back to POSTGRES_URL (set by the Vercel ↔ Supabase integration); see loadConfig. */
   DATABASE_URL: z.string().trim().optional().transform((v) => v || undefined),
   /**
    * TLS to PostgreSQL. auto = off for localhost/docker, `require` otherwise.
@@ -74,7 +75,11 @@ export type AppConfig = z.output<typeof EnvSchema>
 /** Reads `.env` (if present) and validates the environment. Throws a readable error. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (env === process.env && existsSync('.env')) process.loadEnvFile('.env')
-  const parsed = EnvSchema.safeParse(env)
+  const parsed = EnvSchema.safeParse({
+    ...env,
+    // The Vercel ↔ Supabase integration provides POSTGRES_URL (the pooled connection).
+    DATABASE_URL: env.DATABASE_URL?.trim() || env.POSTGRES_URL,
+  })
   if (!parsed.success) {
     const problems = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`)
     throw new Error(`Invalid configuration:\n${problems.join('\n')}`)

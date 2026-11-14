@@ -17,6 +17,8 @@ coverage
 # Secrets and local database (never commit personal data or keys)
 .env
 backend/.env
+.env.*
+!.env.example
 backend/data/
 backend/exports/
 
