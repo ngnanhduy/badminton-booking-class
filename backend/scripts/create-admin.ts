@@ -1,8 +1,10 @@
 /**
  * Creates an admin account, or resets the password of an existing one.
+ * An account signs in with an email address or a username.
  *
+ *   npm run admin:create -w backend -- --username coach --name "Your Name"
  *   npm run admin:create -w backend -- --email you@example.com --name "Your Name"
- *   npm run admin:create -w backend -- --email you@example.com --reset
+ *   npm run admin:create -w backend -- --username coach --reset
  *
  * A random password is generated and printed once (set ADMIN_PASSWORD to choose one instead;
  * avoid typing passwords as command arguments, they end up in shell history). Uses
@@ -14,18 +16,28 @@ import { parseArgs } from 'node:util'
 import { keyringFromConfig, loadConfig } from '../src/config/env.js'
 import { openDatabaseFromConfig } from '../src/db/client.js'
 import { PASSWORD_MIN_LENGTH } from '../src/lib/password.js'
-import { createUser, findUserIdByEmail, resetPassword } from '../src/modules/auth/auth.service.js'
+import {
+  createUser,
+  findUserIdByEmail,
+  isValidLoginId,
+  resetPassword,
+} from '../src/modules/auth/auth.service.js'
 
 const { values } = parseArgs({
   options: {
     email: { type: 'string' },
+    username: { type: 'string' },
     name: { type: 'string' },
     reset: { type: 'boolean', default: false },
   },
 })
 
-if (!values.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
-  console.error('Usage: npm run admin:create -w backend -- --email you@example.com --name "Your Name" [--reset]')
+const loginId = (values.username ?? values.email)?.trim()
+if (!loginId || (values.username && values.email) || !isValidLoginId(loginId)) {
+  console.error(
+    'Usage: npm run admin:create -w backend -- (--username coach | --email you@example.com) --name "Your Name" [--reset]\n' +
+      'A username is 3–32 characters: letters, digits, ".", "_" or "-".',
+  )
   process.exit(1)
 }
 const chosen = process.env.ADMIN_PASSWORD
@@ -40,18 +52,18 @@ const deps = { db: database.db, keyring: keyringFromConfig(config), config }
 const by = { actor: 'system' as const, actorId: null }
 
 try {
-  const existingId = await findUserIdByEmail(deps, values.email)
+  const existingId = await findUserIdByEmail(deps, loginId)
   if (values.reset) {
-    if (!existingId) throw new Error(`No account with email ${values.email}.`)
+    if (!existingId) throw new Error(`No account "${loginId}".`)
     const password = await resetPassword(deps, existingId, by)
-    console.log(`Password reset for ${values.email}. All of its sessions were signed out.`)
+    console.log(`Password reset for ${loginId}. All of its sessions were signed out.`)
     console.log(`\n  Temporary password: ${password}\n`)
     console.log('Sign in and change it under Account (Tài khoản).')
   } else {
-    if (existingId) throw new Error(`${values.email} already has an account. Use --reset to set a new password.`)
+    if (existingId) throw new Error(`"${loginId}" already has an account. Use --reset to set a new password.`)
     const { user, temporaryPassword } = await createUser(
       deps,
-      { email: values.email, name: values.name?.trim() || values.email.split('@')[0]!, password: chosen },
+      { email: loginId, name: values.name?.trim() || loginId.split('@')[0]!, password: chosen },
       by,
     )
     console.log(`Admin account created: ${user.email} (${user.name}).`)

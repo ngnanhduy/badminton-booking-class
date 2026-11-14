@@ -39,6 +39,12 @@ describe('SlotOption', () => {
     expect(wrapper.text()).toContain('Đã chọn cho Buổi 2')
   })
 
+  it('is disabled when another session is already on the same day', () => {
+    const wrapper = render({ sameDayAs: 1 })
+    expect(wrapper.get('button').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('Trùng ngày với Buổi 1')
+  })
+
   it('is translated to English, with plurals and 24-hour times', async () => {
     setLocale('en')
     const wrapper = render({ count: 7 })

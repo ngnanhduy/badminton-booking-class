@@ -35,6 +35,17 @@ type Actor = { actor: 'admin' | 'system'; actorId: string | null }
 
 const aad = (userId: string, field: 'email' | 'name') => `user:${userId}:${field}`
 
+/**
+ * Accounts sign in with an email address or a username (3–32 letters, digits, `.`, `_`, `-`).
+ * Both are stored in the `email` field and compared case-insensitively.
+ */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const USERNAME_RE = /^[a-z0-9._-]{3,32}$/i
+export const isValidLoginId = (value: string) => {
+  const v = value.trim()
+  return v.length <= 254 && (EMAIL_RE.test(v) || USERNAME_RE.test(v))
+}
+
 export const normalizeEmail = (email: string) => email.trim().toLowerCase()
 export const emailIndex = (keyring: Keyring, email: string) =>
   blindIndex(keyring, 'user-email', normalizeEmail(email))
@@ -65,7 +76,7 @@ export async function createUser(
   const email = normalizeEmail(input.email)
   const emailHash = emailIndex(keyring, email)
   const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.emailHash, emailHash))
-  if (existing) throw conflict('EMAIL_TAKEN', 'Email này đã có tài khoản.')
+  if (existing) throw conflict('EMAIL_TAKEN', 'Email hoặc tên đăng nhập này đã có tài khoản.')
 
   const password = input.password ?? generatePassword()
   const id = randomUUID()

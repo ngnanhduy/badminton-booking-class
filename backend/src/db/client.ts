@@ -34,7 +34,10 @@ export async function openDatabase(options: {
   ssl?: SslMode
   caCert?: string | undefined
   poolMax?: number
+  /** Run pending migrations and seed default settings (default true). */
+  migrate?: boolean
 }): Promise<Database> {
+  const migrate = options.migrate ?? true
   let database: Database
 
   if (options.url) {
@@ -45,7 +48,7 @@ export async function openDatabase(options: {
     )
     const pool = new pg.Pool({ connectionString, ssl, max: options.poolMax ?? 5 })
     const db = drizzlePg(pool, { schema })
-    await migratePg(db, { migrationsFolder: MIGRATIONS_FOLDER })
+    if (migrate) await migratePg(db, { migrationsFolder: MIGRATIONS_FOLDER })
     database = { db: db as unknown as Db, driver: 'postgres', close: () => pool.end() }
   } else {
     const dir = options.pgliteDir ?? './data/pglite'
@@ -56,13 +59,17 @@ export async function openDatabase(options: {
     database = { db: db as unknown as Db, driver: 'pglite', close: () => client.close() }
   }
 
-  await database.db.insert(schema.settings).values({ id: 1, ...DEFAULT_SETTINGS }).onConflictDoNothing()
+  // The embedded database is always migrated (it is local and private to this process).
+  if (migrate || database.driver === 'pglite') {
+    await database.db.insert(schema.settings).values({ id: 1, ...DEFAULT_SETTINGS }).onConflictDoNothing()
+  }
   return database
 }
 
 /** Opens the database described by the app configuration. */
-export function openDatabaseFromConfig(config: AppConfig) {
+export function openDatabaseFromConfig(config: AppConfig, overrides: { migrate?: boolean } = {}) {
   return openDatabase({
+    migrate: overrides.migrate ?? config.DATABASE_MIGRATE_ON_START,
     url: config.DATABASE_URL,
     pgliteDir: config.PGLITE_DIR,
     ssl: config.DATABASE_SSL,

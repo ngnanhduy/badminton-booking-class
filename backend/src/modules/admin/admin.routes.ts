@@ -4,10 +4,11 @@ import { z } from 'zod'
 
 import { bookings, ROLES, settings } from '../../db/schema.js'
 import { forbidden, notFound } from '../../lib/errors.js'
+import { listAttendance, markAttendance } from '../attendance/attendance.service.js'
 import { audit, listAuditLogs } from '../audit/audit.service.js'
 import { requireAdmin, type AdminActor } from '../auth/auth.guard.js'
 import { NewPassword } from '../auth/auth.routes.js'
-import { createUser, deleteUser, listUsers, resetPassword } from '../auth/auth.service.js'
+import { createUser, deleteUser, isValidLoginId, listUsers, resetPassword } from '../auth/auth.service.js'
 import { decryptBooking, decryptContact, purgeExpiredBookings } from '../bookings/booking.service.js'
 import { getSchedule, getSettings } from '../schedule/schedule.service.js'
 
@@ -27,8 +28,25 @@ const ListQuery = z.object({
   includeContact: z.enum(['true', 'false']).optional(),
 })
 
+const AttendanceBody = z.object({
+  marks: z
+    .array(
+      z.object({
+        bookingId: z.uuid(),
+        slot: z.string().trim().min(1).max(100),
+        present: z.boolean(),
+      }),
+    )
+    .min(1)
+    .max(500),
+})
+
 const CreateUserBody = z.object({
-  email: z.email('Email không hợp lệ.').max(254),
+  /** Email or username (see isValidLoginId). */
+  email: z
+    .string()
+    .trim()
+    .refine(isValidLoginId, 'Email hoặc tên đăng nhập không hợp lệ (tên đăng nhập: 3–32 ký tự a-z, 0-9, . _ -).'),
   name: z.string().trim().min(1).max(100),
   password: NewPassword.optional(),
   role: z.enum(ROLES).optional(),
@@ -92,6 +110,19 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       weekLabel: deleted[0].weekLabel,
     })
     return { deleted: true, config: await getSchedule(app.deps.db, app.deps.config) }
+  })
+
+  /** Present/absent marks for a week's bookings (default: current week). */
+  app.get('/attendance', async (request) => {
+    const { week } = z.object({ week: z.string().optional() }).parse(request.query)
+    const weekLabel = week ?? (await getSettings(app.deps.db)).weekLabel
+    return { weekLabel, records: await listAttendance(app.deps.db, weekLabel) }
+  })
+
+  /** Marks one or more booked sessions as present (true) or absent (false). */
+  app.put('/attendance', async (request) => {
+    const { marks } = AttendanceBody.parse(request.body)
+    return markAttendance(app.deps, marks, by(request))
   })
 
   /** Update class settings (week, rules, slots, capacity, open). */

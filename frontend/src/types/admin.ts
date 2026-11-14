@@ -31,3 +31,22 @@ export interface AdminUser extends AuthUser {
 export type SettingsUpdate = Partial<
   Pick<ScheduleConfig, 'weekLabel' | 'rules' | 'slots1' | 'slots2' | 'capacity' | 'open'>
 >
+
+/** An admin's present/absent mark for one booked session. No entry = not marked yet. */
+export interface AttendanceRecord {
+  bookingId: string
+  slot: string
+  present: boolean
+  updatedAt: string
+}
+
+export interface AttendanceList {
+  weekLabel: string
+  records: AttendanceRecord[]
+}
+
+export interface AttendanceMark {
+  bookingId: string
+  slot: string
+  present: boolean
+}

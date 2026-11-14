@@ -2,10 +2,13 @@ import type {
   BookingPayload,
   DeleteResponse,
   ExistingBooking,
+  Member,
+  MemberList,
   ScheduleConfig,
   SubmitResponse,
 } from '@/types/booking'
 import { normalizeContact } from '@/utils/contact'
+import { parseSlot } from '@/utils/slots'
 import type { BookingApi } from './api'
 import { ApiError, type ErrorParams } from './errors'
 
@@ -71,12 +74,40 @@ export function createDemoConfig(): ScheduleConfig {
     },
     totalBookings: 17,
     privacy: {
-      policyVersion: '2026-11-10',
+      policyVersion: '2026-11-12',
       retentionDays: 180,
       controllerName: 'Lớp Cầu Lông',
       controllerContact: '',
     },
   }
+}
+
+/** A few sample members for the demo dashboard. */
+function createDemoMembers(weekLabel: string): Member[] {
+  const member = (
+    zaloName: string,
+    weeks: number,
+    sessions: number,
+    attended: number,
+    absent: number,
+    slots: string[] | null,
+  ): Member => ({
+    zaloName,
+    weeks,
+    sessions,
+    thisWeek: slots && { count: slots.length, slots },
+    lastWeekLabel: slots ? weekLabel : '2/11 - 8/11',
+    firstBookedAt: '2026-09-01T10:00:00.000Z',
+    lastBookedAt: slots ? '2026-11-09T12:00:00.000Z' : '2026-11-02T12:00:00.000Z',
+    attended,
+    absent,
+  })
+  return [
+    member('Lan Phạm', 10, 24, 20, 2, ['Thứ 2 18h - 20h', 'Thứ 5 18h - 20h']),
+    member('Tuấn Hoàng', 6, 12, 9, 3, ['Thứ 4 20h - 22h']),
+    member('Hà Vũ', 3, 6, 2, 3, null),
+    member('Quang Đỗ', 1, 2, 0, 0, ['Thứ 7 14h - 16h', 'Chủ nhật 10h - 12h']),
+  ]
 }
 
 const clone = <T>(value: T): T => structuredClone(value)
@@ -95,6 +126,26 @@ export function createMockApi(latencyMs = 600): BookingApi {
     async getSchedule() {
       await delay(latencyMs)
       return clone(config)
+    },
+
+    async listMembers(): Promise<MemberList> {
+      await delay(latencyMs)
+      const now = new Date().toISOString()
+      const booked: Member[] = [...bookings.values()].map((b) => ({
+        zaloName: b.zaloName,
+        weeks: 1,
+        sessions: b.count,
+        thisWeek: { count: b.count, slots: [...b.slots] },
+        lastWeekLabel: b.weekLabel,
+        firstBookedAt: now,
+        lastBookedAt: now,
+        attended: 0,
+        absent: 0,
+      }))
+      return {
+        weekLabel: config.weekLabel,
+        members: [...booked, ...createDemoMembers(config.weekLabel)],
+      }
     },
 
     async lookupBooking(rawContact: string): Promise<ExistingBooking> {
@@ -149,6 +200,17 @@ export function createMockApi(latencyMs = 600): BookingApi {
         )
       }
       const previous = bookings.get(key)?.slots ?? []
+
+      const days = payload.slots.map((s) => parseSlot(s)).filter((s) => s.dayIndex < 7)
+      const clash = days.find((s, i) => days.findIndex((o) => o.dayIndex === s.dayIndex) !== i)
+      if (clash) {
+        throw fail(
+          400,
+          'SLOT_SAME_DAY',
+          `Các buổi phải vào các ngày khác nhau (${clash.day} bị chọn 2 lần).`,
+          { day: clash.day },
+        )
+      }
 
       if (config.capacity) {
         for (const slot of payload.slots) {

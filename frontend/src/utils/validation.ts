@@ -1,6 +1,7 @@
 import { t } from '@/i18n'
 import type { ScheduleConfig, SessionCount } from '@/types/booking'
 import { normalizeContact } from './contact'
+import { parseSlot } from './slots'
 
 export interface BookingDraft {
   zaloName: string
@@ -50,17 +51,24 @@ export function validateBooking(
   }
 
   const seen = new Set<string>()
+  /** Weekday index → 1-based session already on that day. */
+  const days = new Map<number, number>()
   for (let i = 0; i < draft.count; i++) {
     const key = `slot${i}` as 'slot0' | 'slot1' | 'slot2'
     const slot = draft.slots[i] ?? ''
     const allowed = i === 0 ? config?.slots1 : config?.slots2
+    const dayIndex = slot ? parseSlot(slot).dayIndex : 7
 
     if (!slot) errors[key] = t('validation.slotRequired', { n: i + 1 })
     else if (allowed && !allowed.includes(slot))
       errors[key] = t('validation.slotNotInSchedule', { slot, n: i + 1 })
     else if (seen.has(slot)) errors[key] = t('validation.slotDuplicate')
+    // With 2+ sessions each must be on a different day (free-text slots can't be checked).
+    else if (days.has(dayIndex))
+      errors[key] = t('validation.slotSameDay', { n: days.get(dayIndex)! })
 
     seen.add(slot)
+    if (slot && dayIndex < 7 && !days.has(dayIndex)) days.set(dayIndex, i + 1)
   }
 
   return errors

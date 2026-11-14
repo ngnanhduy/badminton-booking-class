@@ -108,3 +108,28 @@ export interface DayGroup {
   dayIndex: number
   slots: Slot[]
 }
+
+/**
+ * One student across all weeks kept, from the public `GET /api/v1/members`. Never contains
+ * phone/email, notes or ids.
+ */
+export interface Member {
+  zaloName: string
+  /** Number of weeks booked. */
+  weeks: number
+  /** Sessions booked in total. */
+  sessions: number
+  /** This week's booking, or null. */
+  thisWeek: { count: number; slots: string[] } | null
+  lastWeekLabel: string
+  firstBookedAt: string
+  lastBookedAt: string
+  /** Sessions an admin marked present / absent. */
+  attended: number
+  absent: number
+}
+
+export interface MemberList {
+  weekLabel: string
+  members: Member[]
+}

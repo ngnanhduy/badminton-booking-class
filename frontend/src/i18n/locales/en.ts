@@ -13,6 +13,7 @@ const en: Messages = {
     edit: 'Change a booking',
     privacy: 'Personal data notice',
     schedule: 'Weekly schedule',
+    members: 'Members',
     login: 'Admin sign-in',
     account: 'Account',
     admin: 'Admin',
@@ -23,6 +24,7 @@ const en: Messages = {
     booking: 'Book',
     edit: 'Change',
     schedule: 'Schedule',
+    members: 'Members',
   },
   theme: {
     group: 'Theme',
@@ -131,6 +133,7 @@ const en: Messages = {
   },
   slot: {
     takenBy: 'Chosen for session {n}',
+    sameDayAs: 'Same day as session {n}',
     full: 'Full',
     seatsLeft: '{n} place left | {n} places left',
     people: '{n} person | {n} people',
@@ -147,6 +150,7 @@ const en: Messages = {
     slotRequired: 'Please choose a slot for session {n}.',
     slotNotInSchedule: '"{slot}" is not available for session {n}.',
     slotDuplicate: 'Sessions must be in different slots.',
+    slotSameDay: 'Session {n} is already on this day. Please choose a different day.',
   },
   summary: {
     title: 'Your booking',
@@ -242,14 +246,15 @@ const en: Messages = {
         body: [
           'Basic personal data: your Zalo name, phone number or email, and a make-up session note (if you enter one).',
           'Booking details: how many sessions and which time slots you chose this week.',
-          "Students don't need an account. Only class staff have admin accounts: email and name (encrypted), password (stored only as a hash) and sign-in times.",
+          'Attendance: whether you attended each session you booked, marked by the class admins.',
+          "Students don't need an account. Only class staff have admin accounts: email or username and name (encrypted), password (stored only as a hash) and sign-in times.",
           "We don't collect sensitive personal data and don't use tracking cookies. Your browser only remembers your Zalo name to pre-fill it next time, plus your language and theme. Signed-in admins also get a session cookie (strictly necessary to stay signed in).",
         ],
       },
       {
         title: '3. Purpose and legal basis',
         body: [
-          'The only purposes: scheduling weekly sessions, contacting you about schedule changes, and verifying you when you view, change or delete your booking.',
+          'The only purposes: scheduling weekly sessions, taking attendance, showing the class member list, contacting you about schedule changes, and verifying you when you view, change or delete your booking.',
           'Legal basis: your consent — voluntary, explicit and for the purposes above. Silence or an unticked box is not consent.',
           "If you don't provide the data or don't consent, you can't book on this site, but you can still contact the class directly.",
         ],
@@ -259,7 +264,7 @@ const en: Messages = {
         body: [
           'Your name, phone number/email and notes are encrypted with AES-256-GCM before being stored; the encryption keys are kept separately.',
           'Bookings are found with keyed hashes (HMAC-SHA256), without decrypting anything. Data is sent over HTTPS.',
-          'Only signed-in admins can see the list of bookings. Every access, change, deletion and export is logged (the log contains no personal data).',
+          'Only signed-in admins can see the full list of bookings with phone numbers/emails and notes, and only admins can mark attendance. Every access, change, deletion and export is logged (the log contains no personal data).',
         ],
       },
       {
@@ -271,7 +276,8 @@ const en: Messages = {
       {
         title: '6. Sharing',
         body: [
-          "The data is only used internally by the class staff. We don't sell it or share it with third parties for advertising.",
+          'Your Zalo name, the slots you booked and your attendance (sessions attended/missed) are shown to everyone on the public Members page, so classmates can see who is in the class. Your phone number/email and notes are never shown there.',
+          "Apart from that, the data is only used internally by the class staff. We don't sell it or share it with third parties for advertising.",
         ],
       },
       {
@@ -288,6 +294,8 @@ const en: Messages = {
     loginIntro: "For class staff. Students don't need to sign in to book.",
     email: 'Email',
     emailPlaceholder: "you{'@'}example.com",
+    loginId: 'Email or username',
+    loginIdPlaceholder: "you{'@'}example.com or username",
     password: 'Password',
     showPassword: 'Show password',
     hidePassword: 'Hide password',
@@ -318,6 +326,7 @@ const en: Messages = {
       'See bookings, edit the weekly schedule and manage admin accounts. Every action on personal data is logged.',
     tabsLabel: 'Admin sections',
     tabBookings: 'Bookings',
+    tabAttendance: 'Attendance',
     tabSettings: 'Class settings',
     tabUsers: 'Admins',
     statStudents: 'Students',
@@ -351,6 +360,52 @@ const en: Messages = {
       makeup: 'Make-up',
       updated: 'Updated',
     },
+  },
+  adminAttendance: {
+    chooseSlot: 'Choose a class',
+    presentOf: '{present}/{total} present',
+    summary: '{present} present · {absent} absent · {unmarked} not marked',
+    search: 'Search by name',
+    markAll: 'Mark all present',
+    listLabel: 'Students in this class',
+    present: 'Present',
+    absent: 'Absent',
+    unmarked: 'Not marked',
+    empty: 'No classes to take attendance for',
+    emptyHint: 'Nobody has booked for the week of {week} yet.',
+    footer:
+      'Tick a student when they attend, untick to mark them absent. Changes are saved straight away and logged.',
+    loadFailed: "Couldn't load the attendance list.",
+    saveFailed: "Couldn't save attendance. Please try again.",
+  },
+  members: {
+    statTotal: 'Members',
+    statThisWeek: 'Booked this week',
+    statAttendance: 'Attendance',
+    search: 'Search by name',
+    sortLabel: 'Sort by',
+    sort: {
+      name: 'Name (A–Z)',
+      weeks: 'Most weeks',
+      attendance: 'Best attendance',
+      recent: 'Recently booked',
+    },
+    onlyThisWeek: 'Only booked this week',
+    colThisWeek: 'This week ({week})',
+    colWeeks: 'Weeks',
+    colAttendance: 'Attendance',
+    colLast: 'Last booked',
+    since: 'Since {date}',
+    sessions: '{n} session | {n} sessions',
+    notThisWeek: 'Not booked · last: {week}',
+    empty: 'No members yet',
+    emptyHint: 'Students appear here after their first booking.',
+    privacyNote:
+      '{n} member. Phone numbers, emails and notes are never shown on this page. | {n} members. Phone numbers, emails and notes are never shown on this page.',
+    intro:
+      "Everyone in the class, with this week's sessions and attendance. Attendance is taken by the class admins.",
+    takeAttendance: 'Take attendance',
+    loadFailed: "Couldn't load the members.",
   },
   adminSettings: {
     weekSection: 'Week',
@@ -413,6 +468,8 @@ const en: Messages = {
     SLOT_REQUIRED: 'Please choose a slot for session {session}.',
     SLOT_INVALID: '"{slot}" is not a valid slot.',
     SLOT_DUPLICATE: 'Sessions must be in different slots.',
+    SLOT_SAME_DAY: 'Each session must be on a different day ({day} was chosen twice).',
+    SLOT_NOT_BOOKED: 'This student did not book "{slot}".',
     SLOT_FULL: '"{slot}" is full, please choose another slot.',
     NAME_TAKEN:
       'The Zalo name "{name}" has already booked this week with a different phone/email. If that\'s you, use the same details as before.',
@@ -420,11 +477,11 @@ const en: Messages = {
     UNAUTHORIZED: 'Please sign in to continue.',
     FORBIDDEN: "Your account isn't allowed to do this.",
     BAD_ORIGIN: 'Request refused (invalid origin).',
-    INVALID_CREDENTIALS: 'Wrong email or password.',
+    INVALID_CREDENTIALS: 'Wrong email/username or password.',
     ACCOUNT_LOCKED:
       'This account is temporarily locked after too many failed sign-ins. Try again in {minutes} minutes.',
     WRONG_PASSWORD: 'Your current password is wrong.',
-    EMAIL_TAKEN: 'This email already has an account.',
+    EMAIL_TAKEN: 'This email or username already has an account.',
     USER_NOT_FOUND: 'Account not found.',
     CANNOT_DELETE_SELF: "You can't delete your own account.",
     LAST_ADMIN: "The last admin can't be deleted.",

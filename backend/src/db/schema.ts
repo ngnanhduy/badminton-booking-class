@@ -7,6 +7,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   smallint,
   text,
   timestamp,
@@ -69,6 +70,25 @@ export const bookings = pgTable(
     index('bookings_updated_at_idx').on(t.updatedAt),
     check('bookings_session_count_range', sql`${t.sessionCount} BETWEEN 1 AND 3`),
   ],
+)
+
+/**
+ * Attendance taken by admins: one row per booking + slot that has been marked. No row means
+ * "not marked yet". Holds no personal data itself and is deleted together with its booking.
+ */
+export const attendance = pgTable(
+  'attendance',
+  {
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    slot: text('slot').notNull(),
+    present: boolean('present').notNull(),
+    /** users.id of the admin who marked it, or 'token'. */
+    updatedBy: text('updated_by'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.bookingId, t.slot] })],
 )
 
 /**
@@ -140,4 +160,5 @@ export const sessions = pgTable(
 
 export type BookingRow = typeof bookings.$inferSelect
 export type UserRow = typeof users.$inferSelect
+export type AttendanceRow = typeof attendance.$inferSelect
 export type SettingsRow = typeof settings.$inferSelect

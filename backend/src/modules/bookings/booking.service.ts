@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { and, eq, lt, ne } from 'drizzle-orm'
+import { and, eq, lt, ne, notInArray } from 'drizzle-orm'
 
-import { bookings, settings, type BookingRow } from '../../db/schema.js'
+import { attendance, bookings, settings, type BookingRow } from '../../db/schema.js'
 import { normalizeContact, normalizeName } from '../../lib/contact.js'
 import { blindIndex, decrypt, encrypt, type Keyring } from '../../lib/crypto.js'
 import { badRequest, conflict, notFound } from '../../lib/errors.js'
+import { dayLabel, findSameDay } from '../../lib/slots.js'
 import type { AppDeps } from '../../types.js'
 import { audit, type AuditActor } from '../audit/audit.service.js'
 import { countSlots, getSettings } from '../schedule/schedule.service.js'
@@ -56,6 +57,11 @@ export function decryptBooking(keyring: Keyring, row: BookingRow): BookingView {
   }
 }
 
+/** Decrypts only the Zalo name (for views that must not touch contact or notes). */
+export function decryptName(keyring: Keyring, row: Pick<BookingRow, 'id' | 'nameEnc'>) {
+  return decrypt(keyring, row.nameEnc, aad(row.id, 'name'))
+}
+
 /** Decrypts the contact column — admin use only. */
 export function decryptContact(keyring: Keyring, row: BookingRow) {
   return decrypt(keyring, row.contactEnc, aad(row.id, 'contact'))
@@ -89,6 +95,14 @@ export async function submitBooking(deps: AppDeps, input: SubmitBookingInput) {
     }
     if (new Set(slots).size !== slots.length) {
       throw badRequest('SLOT_DUPLICATE', 'Các buổi không được trùng ca.')
+    }
+    // With 2+ sessions, each one must be on a different day.
+    const sameDay = findSameDay(slots)
+    if (sameDay) {
+      const day = dayLabel(sameDay)
+      throw badRequest('SLOT_SAME_DAY', `Các buổi phải vào các ngày khác nhau (${day} bị chọn 2 lần).`, {
+        day,
+      })
     }
 
     const [existing] = await tx
@@ -143,8 +157,13 @@ export async function submitBooking(deps: AppDeps, input: SubmitBookingInput) {
       updatedAt: now,
     }
 
-    if (existing) await tx.update(bookings).set(values).where(eq(bookings.id, id))
-    else await tx.insert(bookings).values({ id, ...values, createdAt: now })
+    if (existing) {
+      await tx.update(bookings).set(values).where(eq(bookings.id, id))
+      // Attendance marked for slots the student no longer booked would be meaningless.
+      await tx
+        .delete(attendance)
+        .where(and(eq(attendance.bookingId, id), notInArray(attendance.slot, slots)))
+    } else await tx.insert(bookings).values({ id, ...values, createdAt: now })
 
     await audit(tx, {
       actor: 'student',

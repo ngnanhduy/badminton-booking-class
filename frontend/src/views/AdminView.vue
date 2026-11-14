@@ -2,8 +2,9 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { CalendarCog, ClipboardList, UsersRound } from '@lucide/vue'
+import { CalendarCog, ClipboardCheck, ClipboardList, UsersRound } from '@lucide/vue'
 
+import AdminAttendance from '@/components/admin/AdminAttendance.vue'
 import AdminBookings from '@/components/admin/AdminBookings.vue'
 import AdminSettings from '@/components/admin/AdminSettings.vue'
 import AdminUsers from '@/components/admin/AdminUsers.vue'
@@ -18,6 +19,12 @@ onMounted(() => schedule.load({ force: true }))
 
 const TABS = [
   { id: 'dang-ky', labelKey: 'admin.tabBookings', icon: ClipboardList, component: AdminBookings },
+  {
+    id: 'diem-danh',
+    labelKey: 'admin.tabAttendance',
+    icon: ClipboardCheck,
+    component: AdminAttendance,
+  },
   { id: 'cai-dat', labelKey: 'admin.tabSettings', icon: CalendarCog, component: AdminSettings },
   { id: 'quan-tri-vien', labelKey: 'admin.tabUsers', icon: UsersRound, component: AdminUsers },
 ] as const

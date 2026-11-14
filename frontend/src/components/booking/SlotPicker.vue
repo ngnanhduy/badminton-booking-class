@@ -11,6 +11,8 @@ defineProps<{
   counts: Record<string, number>
   /** Slot value → 1-based number of another session that already uses it. */
   takenBy: Record<string, number>
+  /** Weekday index → 1-based number of another session already on that day. */
+  dayTakenBy?: Record<number, number>
   labelledBy?: string
 }>()
 
@@ -48,6 +50,7 @@ const emit = defineEmits<{ select: [value: string] }>()
           :count="counts[slot.value] ?? 0"
           :capacity="capacity"
           :taken-by="takenBy[slot.value] ?? 0"
+          :same-day-as="dayTakenBy?.[slot.dayIndex] ?? 0"
           @select="emit('select', $event)"
         />
       </div>

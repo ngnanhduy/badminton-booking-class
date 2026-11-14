@@ -36,6 +36,13 @@
       "when": 1794326787899,
       "tag": "0004_admin_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794413697157,
+      "tag": "0005_attendance",
+      "breakpoints": true
     }
   ]
 }

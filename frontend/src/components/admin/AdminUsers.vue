@@ -230,15 +230,15 @@ const inputClass =
       >
         <div>
           <label for="new-admin-email" class="mb-1.5 block text-sm font-medium">
-            {{ t('auth.email') }}
+            {{ t('auth.loginId') }}
           </label>
           <input
             id="new-admin-email"
             v-model="form.email"
-            type="email"
+            type="text"
             autocomplete="off"
             spellcheck="false"
-            :placeholder="t('auth.emailPlaceholder')"
+            :placeholder="t('auth.loginIdPlaceholder')"
             :class="inputClass"
           />
         </div>

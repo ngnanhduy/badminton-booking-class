@@ -208,6 +208,22 @@ describe('admin accounts', () => {
     expect(res.json().error.code).toBe('EMAIL_TAKEN')
   })
 
+  it('creates an admin with a username instead of an email, signing in case-insensitively', async () => {
+    const create = (email: string) =>
+      ctx.app.inject({ method: 'POST', url: '/api/v1/admin/users', cookies: admin, payload: { email, name: 'Coach Two' } })
+
+    const res = await create('Coach_2')
+    expect(res.statusCode).toBe(201)
+    const { user, temporaryPassword } = res.json()
+    expect(user.email).toBe('coach_2')
+    await expect(ctx.login('COACH_2', temporaryPassword)).resolves.toBeTruthy()
+
+    expect((await create('coach_2')).json().error.code).toBe('EMAIL_TAKEN')
+    for (const bad of ['ab', 'has space', 'bad/char', 'x'.repeat(33)]) {
+      expect((await create(bad)).statusCode, bad).toBe(400)
+    }
+  })
+
   it('resets another admin’s password and signs them out', async () => {
     const created = await ctx.createAdmin('reset@example.com')
     const theirSession = (await ctx.login('reset@example.com')).cookies

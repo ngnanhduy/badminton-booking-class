@@ -44,6 +44,34 @@ describe('validateBooking', () => {
     expect(errors.slot1).toBe('Các buổi không được trùng ca.')
   })
 
+  it('rejects two sessions on the same day', () => {
+    const sameDay = {
+      slots1: ['Thứ 2 18h - 20h', 'Thứ 4 18h - 20h'],
+      slots2: ['Thứ 2 20h - 22h', 'Thứ 4 20h - 22h', 'Chủ nhật 10h - 12h'],
+    }
+    expect(
+      validateBooking(draft({ count: 2, slots: ['Thứ 2 18h - 20h', 'Thứ 2 20h - 22h'] }), sameDay),
+    ).toEqual({ slot1: 'Buổi 1 đã chọn ngày này. Vui lòng chọn ngày khác.' })
+    expect(
+      validateBooking(
+        draft({ count: 3, slots: ['Thứ 2 18h - 20h', 'Thứ 4 20h - 22h', 'Thứ 4 20h - 22h'] }),
+        sameDay,
+      ).slot2,
+    ).toBe('Các buổi không được trùng ca.')
+    expect(
+      validateBooking(
+        draft({ count: 3, slots: ['Thứ 4 18h - 20h', 'Chủ nhật 10h - 12h', 'Thứ 4 20h - 22h'] }),
+        sameDay,
+      ),
+    ).toEqual({ slot2: 'Buổi 1 đã chọn ngày này. Vui lòng chọn ngày khác.' })
+    expect(
+      validateBooking(
+        draft({ count: 3, slots: ['Thứ 2 18h - 20h', 'Thứ 4 20h - 22h', 'Chủ nhật 10h - 12h'] }),
+        sameDay,
+      ),
+    ).toEqual({})
+  })
+
   it('rejects slots not offered for that session', () => {
     const errors = validateBooking(draft({ slots: ['Thứ 3 14h - 16h'] }), config)
     expect(errors.slot0).toContain('không có trong lịch Buổi 1')

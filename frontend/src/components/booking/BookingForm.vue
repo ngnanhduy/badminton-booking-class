@@ -7,6 +7,7 @@ import BaseAlert from '@/components/ui/BaseAlert.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import { useBookingStore } from '@/stores/booking'
 import { useScheduleStore } from '@/stores/schedule'
+import { parseSlot } from '@/utils/slots'
 import { MAX_MAKEUP_LENGTH, MAX_NAME_LENGTH } from '@/utils/validation'
 import FormStep from './FormStep.vue'
 import SessionCountPicker from './SessionCountPicker.vue'
@@ -53,6 +54,17 @@ const takenBy = computed(() => {
     if (slot && index !== booking.activeSession && index < (booking.form.count ?? 0)) {
       map[slot] = index + 1
     }
+  })
+  return map
+})
+
+/** Weekdays used by the other sessions (dayIndex → session number): one session per day. */
+const dayTakenBy = computed(() => {
+  const map: Record<number, number> = {}
+  booking.form.slots.forEach((slot, index) => {
+    if (!slot || index === booking.activeSession || index >= (booking.form.count ?? 0)) return
+    const { dayIndex } = parseSlot(slot)
+    if (dayIndex < 7 && !(dayIndex in map)) map[dayIndex] = index + 1
   })
   return map
 })
@@ -250,6 +262,7 @@ async function onSubmit() {
               :capacity="schedule.capacity"
               :counts="schedule.config?.counts ?? {}"
               :taken-by="takenBy"
+              :day-taken-by="dayTakenBy"
               @select="booking.toggleSlot(booking.activeSession, $event)"
             />
           </Transition>

@@ -14,6 +14,7 @@ import { adminRoutes } from './modules/admin/admin.routes.js'
 import { setupSessions } from './modules/auth/auth.guard.js'
 import { authRoutes } from './modules/auth/auth.routes.js'
 import { bookingRoutes } from './modules/bookings/booking.routes.js'
+import { membersRoutes } from './modules/members/members.routes.js'
 import { scheduleRoutes } from './modules/schedule/schedule.routes.js'
 import './types.js'
 
@@ -88,6 +89,7 @@ export async function buildApp({ config, database, logger = false }: BuildAppOpt
   await app.register(authRoutes, { prefix: '/api/v1' })
   await app.register(scheduleRoutes, { prefix: '/api/v1' })
   await app.register(bookingRoutes, { prefix: '/api/v1' })
+  await app.register(membersRoutes, { prefix: '/api/v1' })
   await app.register(adminRoutes, { prefix: '/api/v1/admin' })
 
   // Serve the built Vue app (single-container deployment).

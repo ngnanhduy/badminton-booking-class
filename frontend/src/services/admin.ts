@@ -1,4 +1,10 @@
-import type { AdminBookingList, AdminUser, SettingsUpdate } from '@/types/admin'
+import type {
+  AdminBookingList,
+  AdminUser,
+  AttendanceList,
+  AttendanceMark,
+  SettingsUpdate,
+} from '@/types/admin'
 import type { ScheduleConfig } from '@/types/booking'
 import { request } from './api'
 
@@ -11,6 +17,12 @@ export const adminApi = {
     request<{ deleted: true; config: ScheduleConfig }>(`/admin/bookings/${id}`, {
       method: 'DELETE',
     }),
+
+  listAttendance: () => request<AttendanceList>('/admin/attendance'),
+
+  /** Saves present/absent marks for booked sessions. */
+  markAttendance: (marks: AttendanceMark[]) =>
+    request<{ saved: number }>('/admin/attendance', { method: 'PUT', body: { marks } }),
 
   updateSettings: (changes: SettingsUpdate) =>
     request<ScheduleConfig>('/admin/settings', { method: 'PUT', body: changes }),

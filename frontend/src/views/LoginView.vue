@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Eye, EyeOff, LogIn, Mail } from '@lucide/vue'
+import { Eye, EyeOff, LogIn, UserRound } from '@lucide/vue'
 
 import BaseAlert from '@/components/ui/BaseAlert.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -74,23 +74,22 @@ const inputClass =
               for="login-email"
               class="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
             >
-              {{ t('auth.email') }}
+              {{ t('auth.loginId') }}
             </label>
             <div class="relative">
-              <Mail
+              <UserRound
                 class="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-zinc-400"
                 aria-hidden="true"
               />
               <input
                 id="login-email"
                 v-model="email"
-                type="email"
+                type="text"
                 name="email"
                 autocomplete="username"
-                inputmode="email"
                 spellcheck="false"
                 required
-                :placeholder="t('auth.emailPlaceholder')"
+                :placeholder="t('auth.loginIdPlaceholder')"
                 :class="inputClass"
               />
             </div>

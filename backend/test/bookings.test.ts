@@ -42,7 +42,7 @@ describe('POST /bookings', () => {
     expect(raw).not.toContain('0912345678')
     expect(raw).not.toContain('Bù ca')
     expect(row!.contactEnc).toMatch(/^v1\.1\./)
-    expect(row!.consentVersion).toBe('2026-11-10')
+    expect(row!.consentVersion).toBe('2026-11-12')
   })
 
   it('requires explicit consent', async () => {
@@ -62,6 +62,30 @@ describe('POST /bookings', () => {
       (await post('/bookings', validBooking({ count: 2, slots: ['Thứ 2 18h - 20h', 'Thứ 2 18h - 20h'] })))
         .json().error.code,
     ).toBe('SLOT_DUPLICATE')
+    // Two different slots on the same day are refused when booking several sessions
+    const sameDay = await post(
+      '/bookings',
+      validBooking({ count: 2, slots: ['Thứ 2 18h - 20h', 'Thứ 2 20h - 22h'] }),
+    )
+    expect(sameDay.statusCode).toBe(400)
+    expect(sameDay.json().error).toMatchObject({ code: 'SLOT_SAME_DAY', params: { day: 'Thứ 2' } })
+    expect(
+      (
+        await post(
+          '/bookings',
+          validBooking({ count: 3, slots: ['Thứ 2 18h - 20h', 'Thứ 4 18h - 20h', 'Thứ 4 20h - 22h'] }),
+        )
+      ).json().error.code,
+    ).toBe('SLOT_SAME_DAY')
+    expect(
+      (
+        await post(
+          '/bookings',
+          validBooking({ count: 3, slots: ['Thứ 2 18h - 20h', 'Thứ 4 18h - 20h', 'Chủ nhật 10h - 12h'] }),
+        )
+      ).statusCode,
+    ).toBe(201)
+    await ctx.database.db.delete(bookings)
     // Thứ 3 14h is only offered for sessions 2 and 3
     expect((await post('/bookings', validBooking({ slots: ['Thứ 3 14h - 16h'] }))).statusCode).toBe(400)
   })

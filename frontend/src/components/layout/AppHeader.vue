@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { CalendarClock, CalendarDays, PenLine } from '@lucide/vue'
+import { CalendarClock, CalendarDays, PenLine, UsersRound } from '@lucide/vue'
 
 import { useClubName } from '@/composables/useClubName'
 import { appConfig } from '@/config/app'
@@ -17,6 +17,7 @@ const LINKS = [
   { name: 'booking', labelKey: 'nav.booking', icon: PenLine },
   { name: 'edit', labelKey: 'nav.edit', icon: CalendarClock },
   { name: 'schedule', labelKey: 'nav.schedule', icon: CalendarDays },
+  { name: 'members', labelKey: 'nav.members', icon: UsersRound },
 ] as const
 </script>
 

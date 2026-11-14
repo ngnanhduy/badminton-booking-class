@@ -18,8 +18,9 @@ How the app handles students' personal data, and how that maps to Vietnam's
 | Lookup indexes | `bookings.contact_hash`, `bookings.name_hash` | HMAC-SHA256 (one-way, keyed) |
 | Chosen slots, week | `bookings.slot1..3`, `week_label` | Plain text (not personal data on their own) |
 | Consent record | `bookings.consent_version`, `consent_at` | Plain text |
-| Admin email and name (staff only) | `users.email_enc`, `users.name_enc` | AES-256-GCM ciphertext |
-| Admin email lookup index | `users.email_hash` | HMAC-SHA256 (one-way, keyed) |
+| Attendance (present/absent per booked session, marked by an admin) | `attendance.present`, linked by `booking_id` | Plain text; deleted with its booking |
+| Admin email or username, and name (staff only) | `users.email_enc`, `users.name_enc` | AES-256-GCM ciphertext |
+| Admin email/username lookup index | `users.email_hash` | HMAC-SHA256 (one-way, keyed) |
 | Admin password | `users.password_hash` | scrypt hash (N=2^15, r=8, random salt) |
 | Role, creation and last sign-in time | `users.role`, `created_at`, `last_login_at` | Plain text |
 | Admin sessions | `sessions.id` | SHA-256 of the cookie token (the token itself is never stored) |
@@ -37,7 +38,7 @@ have a strictly necessary session cookie. There are no tracking cookies.
 | **Purpose limitation and minimisation** | Only name, contact and the optional note are collected, and only for scheduling and identity verification. |
 | **Rights** of access, correction, deletion and withdrawal of consent | `/sua-lich` lets a student look up, edit or permanently delete their booking using their phone or email (`POST /bookings/lookup`, `POST /bookings`, `POST /bookings/delete`). Other requests go through the controller contact. |
 | **Storage limitation** | Bookings are deleted automatically `RETENTION_DAYS` (default 180) after their last update, and expired admin sessions are removed. The job runs at startup and every 12 hours; `npm run retention:purge -w backend` purges bookings on demand. Remove admin accounts that are no longer needed on the admin page. |
-| **Access control** | Bookings in bulk are only available to signed-in admins (or `ADMIN_TOKEN`). The role is checked on the server for every request, not just hidden in the UI. Passwords are scrypt-hashed; sign-in is rate-limited per IP and accounts lock for 15 minutes after 5 wrong passwords. Account creation, password resets and deletions are audited. |
+| **Access control** | Bookings in bulk are only available to signed-in admins (or `ADMIN_TOKEN`). The role is checked on the server for every request, not just hidden in the UI. Passwords are scrypt-hashed; sign-in is rate-limited per IP and accounts lock for 15 minutes after 5 wrong passwords. Account creation, password resets and deletions are audited. Marking attendance (`PUT /admin/attendance`) is admin-only. The public members page (`/hoc-vien`, `GET /members`) shows Zalo names, booked slots and attendance totals to anyone — it decrypts names only and never returns phone numbers, emails, notes or ids. Students are told about this in the privacy notice (version 2026-11-12). Public views are rate-limited but not audited, since they are anonymous. |
 | **Security: encryption, access control, logging** | Field-level AES-256-GCM, with each value bound to its row and column through authenticated data (AAD). Keys live outside the database, in `.env`. Lookups use HMAC blind indexes, so nothing is decrypted to find a row. The admin API requires a token. Rate limits apply (10 lookups or deletes per 10 minutes per IP), and Helmet sets security headers. Logs never contain request bodies. |
 | **Accountability**: record of processing | The `audit_logs` table records every create, update, view, delete, admin list, export, purge, sign-in (including failed ones and lockouts) and account change. Each entry has the time, the actor type and the actor's pseudonymous user id (`actor_id`), never an email or name. |
 | **Data in transit** | Deploy behind HTTPS (see the README). The API refuses browser origins not listed in `CORS_ORIGINS`. |

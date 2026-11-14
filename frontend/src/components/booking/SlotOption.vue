@@ -9,19 +9,25 @@ import type { Slot } from '@/types/booking'
 
 const { t } = useI18n()
 
-const props = defineProps<{
-  option: Slot
-  selected: boolean
-  count: number
-  capacity: number | null
-  /** 1-based number of another session already using this slot, or 0. */
-  takenBy: number
-}>()
+const props = withDefaults(
+  defineProps<{
+    option: Slot
+    selected: boolean
+    count: number
+    capacity: number | null
+    /** 1-based number of another session already using this slot, or 0. */
+    takenBy: number
+    /** 1-based number of another session already on this slot's day, or 0. */
+    sameDayAs?: number
+  }>(),
+  { sameDayAs: 0 },
+)
 
 const emit = defineEmits<{ select: [value: string] }>()
 
 const full = computed(() => props.capacity !== null && props.count >= props.capacity)
-const disabled = computed(() => !props.selected && (full.value || props.takenBy > 0))
+const blocked = computed(() => props.takenBy > 0 || props.sameDayAs > 0)
+const disabled = computed(() => !props.selected && (full.value || blocked.value))
 
 const PERIOD_ICONS = { morning: Sunrise, afternoon: Sun, evening: Moon } as const
 
@@ -29,6 +35,7 @@ const periodIcon = computed(() => (props.option.period ? PERIOD_ICONS[props.opti
 
 const meta = computed(() => {
   if (props.takenBy) return t('slot.takenBy', { n: props.takenBy })
+  if (props.sameDayAs && !props.selected) return t('slot.sameDayAs', { n: props.sameDayAs })
   if (full.value && !props.selected) return t('slot.full')
   const period = props.option.period ? t(`periods.${props.option.period}`) : ''
   let seats = ''
@@ -81,7 +88,7 @@ const meta = computed(() => {
         {{ meta }}
       </span>
     </span>
-    <span v-if="capacity !== null && !takenBy" class="w-10 shrink-0">
+    <span v-if="capacity !== null && !blocked" class="w-10 shrink-0">
       <OccupancyMeter :count="count" :capacity="capacity" :inverted="selected" />
     </span>
     <span

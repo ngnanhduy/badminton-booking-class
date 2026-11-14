@@ -39,6 +39,12 @@ const router = createRouter({
       meta: { titleKey: 'titles.schedule' },
     },
     {
+      path: '/hoc-vien',
+      name: 'members',
+      component: () => import('@/views/MembersView.vue'),
+      meta: { titleKey: 'titles.members' },
+    },
+    {
       path: '/dang-nhap',
       name: 'login',
       component: () => import('@/views/LoginView.vue'),

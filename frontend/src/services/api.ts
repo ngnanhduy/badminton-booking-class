@@ -5,6 +5,7 @@ import type {
   DeleteResponse,
   ExistingBooking,
   LookupResponse,
+  MemberList,
   ScheduleConfig,
   SubmitResponse,
 } from '@/types/booking'
@@ -20,6 +21,8 @@ export interface BookingApi {
   lookupBooking(contact: string): Promise<ExistingBooking>
   /** Deletes this week's booking (and its personal data) for a phone number or email. */
   deleteBooking(contact: string): Promise<DeleteResponse>
+  /** Public members dashboard: names, slots and attendance totals (no contact details). */
+  listMembers(): Promise<MemberList>
 }
 
 /** JSON request to the backend. The session cookie is sent automatically (same origin). */
@@ -80,6 +83,8 @@ function createHttpApi(): BookingApi {
 
     deleteBooking: (contact) =>
       request<DeleteResponse>('/bookings/delete', { method: 'POST', body: { contact } }),
+
+    listMembers: () => request<MemberList>('/members'),
   }
 }
 

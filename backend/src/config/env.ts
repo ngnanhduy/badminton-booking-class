@@ -23,6 +23,14 @@ const EnvSchema = z.object({
   /** CA certificate for DATABASE_SSL=verify: PEM text, or a path to a .crt/.pem file. */
   DATABASE_CA_CERT: z.string().optional().transform((v) => v?.trim() || undefined),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50).default(5),
+  /**
+   * Apply pending migrations when the API starts. Set to false on serverless hosts (Vercel),
+   * where migrations run once during the build instead of on every cold start.
+   */
+  DATABASE_MIGRATE_ON_START: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
   PGLITE_DIR: z.string().default('./data/pglite'),
   /** Folder with the built frontend (index.html, assets/). Set in Docker; unset in dev. */
   STATIC_DIR: z.string().optional().transform((v) => v?.trim() || undefined),
@@ -40,7 +48,7 @@ const EnvSchema = z.object({
     .transform((v) => v || undefined)
     .refine((v) => !v || v.length >= 32, 'ADMIN_TOKEN must be at least 32 characters'),
   RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(180),
-  PRIVACY_POLICY_VERSION: z.string().min(1).default('2026-11-10'),
+  PRIVACY_POLICY_VERSION: z.string().min(1).default('2026-11-12'),
   CONTROLLER_NAME: z.string().default('Lớp Cầu Lông'),
   CONTROLLER_CONTACT: z.string().default(''),
   TRUST_PROXY: z
