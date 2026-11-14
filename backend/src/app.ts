@@ -3,7 +3,8 @@ import cookie from '@fastify/cookie'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
-import fastifyStatic from '@fastify/static'
+// Types only (reply.sendFile); the plugin itself is loaded on demand below.
+import type {} from '@fastify/static'
 import Fastify, { type FastifyServerOptions } from 'fastify'
 import { ZodError } from 'zod'
 
@@ -95,6 +96,9 @@ export async function buildApp({ config, database, logger = false }: BuildAppOpt
   // Serve the built Vue app (single-container deployment).
   const staticRoot = config.STATIC_DIR ? resolve(config.STATIC_DIR) : undefined
   if (staticRoot) {
+    // Loaded only when serving files: on Vercel the frontend is served by the platform, and
+    // this plugin's ESM-only dependency (content-disposition) can't be require()d there.
+    const { default: fastifyStatic } = await import('@fastify/static')
     await app.register(fastifyStatic, {
       root: staticRoot,
       setHeaders(res, filePath) {
