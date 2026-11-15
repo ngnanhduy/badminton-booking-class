@@ -3,29 +3,57 @@ import type {
   AdminUser,
   AttendanceList,
   AttendanceMark,
-  SettingsUpdate,
+  WeekInput,
+  WeekResponse,
+  WeekSummary,
 } from '@/types/admin'
 import type { ScheduleConfig } from '@/types/booking'
 import { request } from './api'
 
+/** "?a=1&b=2" from the defined values, or "". */
+function query(params: Record<string, string | undefined>) {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) if (value) search.set(key, value)
+  const text = search.toString()
+  return text ? `?${text}` : ''
+}
+
 /** Admin endpoints; the server checks the session's role on every call. */
 export const adminApi = {
-  listBookings: ({ includeContact = false } = {}) =>
-    request<AdminBookingList>(`/admin/bookings${includeContact ? '?includeContact=true' : ''}`),
+  /** Bookings of a week (default: the current week). */
+  listBookings: ({
+    includeContact = false,
+    week,
+  }: { includeContact?: boolean; week?: string } = {}) =>
+    request<AdminBookingList>(
+      `/admin/bookings${query({ week, includeContact: includeContact ? 'true' : undefined })}`,
+    ),
 
   deleteBooking: (id: string) =>
     request<{ deleted: true; config: ScheduleConfig }>(`/admin/bookings/${id}`, {
       method: 'DELETE',
     }),
 
-  listAttendance: () => request<AttendanceList>('/admin/attendance'),
+  /** Attendance marks of a week (default: the current week). */
+  listAttendance: (week?: string) => request<AttendanceList>(`/admin/attendance${query({ week })}`),
 
   /** Saves present/absent marks for booked sessions. */
   markAttendance: (marks: AttendanceMark[]) =>
     request<{ saved: number }>('/admin/attendance', { method: 'PUT', body: { marks } }),
 
-  updateSettings: (changes: SettingsUpdate) =>
-    request<ScheduleConfig>('/admin/settings', { method: 'PUT', body: changes }),
+  /** Every week (history included), newest first, with settings and counts. */
+  listWeeks: () => request<{ weeks: WeekSummary[] }>('/admin/weeks'),
+
+  /**
+   * Creates a week; slots, rules and capacity not given are copied from the latest week.
+   * Fails with WEEK_ALREADY_OPEN when `open` is set while another week is open.
+   */
+  createWeek: (input: WeekInput & { weekLabel: string }) =>
+    request<WeekResponse>('/admin/weeks', { method: 'POST', body: input }),
+
+  /** Changes a week's settings, including opening/closing its registration. */
+  updateWeek: (id: string, changes: WeekInput) =>
+    request<WeekResponse>(`/admin/weeks/${id}`, { method: 'PUT', body: changes }),
 
   listUsers: () => request<{ users: AdminUser[] }>('/admin/users'),
 

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { PGlite } from '@electric-sql/pglite'
@@ -9,7 +10,8 @@ import { migrate as migratePglite } from 'drizzle-orm/pglite/migrator'
 import pg from 'pg'
 
 import type { AppConfig } from '../config/env.js'
-import { DEFAULT_SETTINGS } from './defaults.js'
+import { localTime, mondayOf, weekLabelFor } from '../lib/time.js'
+import { DEFAULT_WEEK } from './defaults.js'
 import * as schema from './schema.js'
 import { pgConnectionOptions, type SslMode } from './ssl.js'
 
@@ -26,7 +28,7 @@ const MIGRATIONS_FOLDER = fileURLToPath(new URL('../../drizzle', import.meta.url
 /**
  * Connects to PostgreSQL. With `url` it uses a normal PostgreSQL server; otherwise an
  * embedded PostgreSQL (PGlite) stored in `pgliteDir` ("memory://" for tests).
- * Runs pending migrations and seeds default settings.
+ * Runs pending migrations and seeds a first week.
  */
 export async function openDatabase(options: {
   url?: string | undefined
@@ -34,8 +36,10 @@ export async function openDatabase(options: {
   ssl?: SslMode
   caCert?: string | undefined
   poolMax?: number
-  /** Run pending migrations and seed default settings (default true). */
+  /** Run pending migrations and seed a first week (default true). */
   migrate?: boolean
+  /** Class time zone, used to date the first week. */
+  timeZone?: string
 }): Promise<Database> {
   const migrate = options.migrate ?? true
   let database: Database
@@ -61,9 +65,20 @@ export async function openDatabase(options: {
 
   // The embedded database is always migrated (it is local and private to this process).
   if (migrate || database.driver === 'pglite') {
-    await database.db.insert(schema.settings).values({ id: 1, ...DEFAULT_SETTINGS }).onConflictDoNothing()
+    await seedFirstWeek(database.db, options.timeZone ?? 'Asia/Ho_Chi_Minh')
   }
   return database
+}
+
+/** On an empty database, opens registration for the current calendar week. */
+async function seedFirstWeek(db: Db, timeZone: string) {
+  const [any] = await db.select({ id: schema.weeks.id }).from(schema.weeks).limit(1)
+  if (any) return
+  const monday = mondayOf(localTime(new Date(), timeZone).date)
+  await db
+    .insert(schema.weeks)
+    .values({ id: randomUUID(), label: weekLabelFor(monday), startDate: monday, ...DEFAULT_WEEK, open: true })
+    .onConflictDoNothing()
 }
 
 /** Opens the database described by the app configuration. */
@@ -75,5 +90,6 @@ export function openDatabaseFromConfig(config: AppConfig, overrides: { migrate?:
     ssl: config.DATABASE_SSL,
     caCert: config.DATABASE_CA_CERT,
     poolMax: config.DATABASE_POOL_MAX,
+    timeZone: config.CLASS_TIMEZONE,
   })
 }

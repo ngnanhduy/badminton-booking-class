@@ -2,12 +2,13 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { CalendarCog, ClipboardCheck, ClipboardList, UsersRound } from '@lucide/vue'
+import { CalendarCog, CalendarRange, ClipboardCheck, ClipboardList, UsersRound } from '@lucide/vue'
 
 import AdminAttendance from '@/components/admin/AdminAttendance.vue'
 import AdminBookings from '@/components/admin/AdminBookings.vue'
 import AdminSettings from '@/components/admin/AdminSettings.vue'
 import AdminUsers from '@/components/admin/AdminUsers.vue'
+import AdminWeeks from '@/components/admin/AdminWeeks.vue'
 import { useScheduleStore } from '@/stores/schedule'
 
 const { t } = useI18n()
@@ -19,6 +20,7 @@ onMounted(() => schedule.load({ force: true }))
 
 const TABS = [
   { id: 'dang-ky', labelKey: 'admin.tabBookings', icon: ClipboardList, component: AdminBookings },
+  { id: 'tuan-hoc', labelKey: 'admin.tabWeeks', icon: CalendarRange, component: AdminWeeks },
   {
     id: 'diem-danh',
     labelKey: 'admin.tabAttendance',
@@ -43,7 +45,12 @@ const stats = computed(() => {
     { label: t('admin.statSeats'), value: schedule.totalSeatsTaken },
     {
       label: t('admin.statStatus'),
-      value: c.open ? t('admin.statusOpen') : t('admin.statusClosed'),
+      value:
+        schedule.registration === 'open'
+          ? t('admin.statusOpen')
+          : schedule.registration === 'upcoming'
+            ? t('admin.statusUpcoming')
+            : t('admin.statusClosed'),
     },
   ]
 })

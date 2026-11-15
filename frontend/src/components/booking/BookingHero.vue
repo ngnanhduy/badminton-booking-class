@@ -3,11 +3,22 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CalendarDays, Gauge, Users } from '@lucide/vue'
 
+import { formatWhen } from '@/i18n/format'
+import { useScheduleStore } from '@/stores/schedule'
 import type { ScheduleConfig } from '@/types/booking'
 import { mergeSlots } from '@/utils/slots'
 
 const props = defineProps<{ config: ScheduleConfig | null }>()
 const { t } = useI18n()
+const schedule = useScheduleStore()
+
+const statusText = computed(() => {
+  if (schedule.registration === 'open') return t('hero.open')
+  if (schedule.registration === 'upcoming' && props.config?.opensAt) {
+    return t('hero.opensAt', { date: formatWhen(props.config.opensAt) })
+  }
+  return t('hero.closed')
+})
 
 const stats = computed(() => {
   const c = props.config
@@ -29,15 +40,21 @@ const stats = computed(() => {
       >
         <span class="relative flex size-2" aria-hidden="true">
           <span
-            v-if="config.open"
+            v-if="schedule.registration === 'open'"
             class="absolute inline-flex size-full animate-ping rounded-full bg-brand-400 opacity-75"
           />
           <span
             class="relative inline-flex size-2 rounded-full"
-            :class="config.open ? 'bg-brand-500' : 'bg-zinc-400'"
+            :class="
+              schedule.registration === 'open'
+                ? 'bg-brand-500'
+                : schedule.registration === 'upcoming'
+                  ? 'bg-amber-500'
+                  : 'bg-zinc-400'
+            "
           />
         </span>
-        {{ config.open ? t('hero.open') : t('hero.closed') }}
+        {{ statusText }}
       </span>
       <span
         class="inline-flex items-center rounded-full bg-brand-600/10 px-3 py-1 text-xs font-semibold text-brand-700 ring-1 ring-brand-600/15 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20"

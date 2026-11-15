@@ -3,6 +3,7 @@ import {
   bigserial,
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -16,24 +17,42 @@ import {
 } from 'drizzle-orm/pg-core'
 
 /**
- * Class settings — a single row (id = 1). Contains no personal data, so it is stored in
- * plain text and can be edited directly in any PostgreSQL tool or via the admin API.
+ * One row per registration week, kept forever as history (no personal data). Each week has
+ * its own slots, rules, capacity and registration window. At most one week is open for
+ * registration at a time (partial unique index); that week is the one the public pages show.
  */
-export const settings = pgTable(
-  'settings',
+export const weeks = pgTable(
+  'weeks',
   {
-    id: smallint('id').primaryKey().default(1),
-    weekLabel: text('week_label').notNull(),
+    id: uuid('id').primaryKey(),
+    /** e.g. "16/11 - 22/11". Bookings refer to their week by this label. */
+    label: text('label').notNull().unique('weeks_label_uq'),
+    /**
+     * First day of the week (class time zone), used to date each slot for self check-in.
+     * Null for weeks created before it was stored: the date is then read from the label.
+     */
+    startDate: date('start_date', { mode: 'string' }),
     rules: jsonb('rules').$type<string[]>().notNull(),
     slots1: jsonb('slots1').$type<string[]>().notNull(),
     slots2: jsonb('slots2').$type<string[]>().notNull(),
     capacity: integer('capacity'),
-    open: boolean('open').notNull().default(true),
+    /** The admin's registration switch. */
+    open: boolean('open').notNull().default(false),
+    /** Registration starts at this time (null = as soon as `open`). */
+    opensAt: timestamp('opens_at', { withTimezone: true }),
+    /** Registration ends at this time (null = until `open` is turned off). */
+    closesAt: timestamp('closes_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    check('settings_singleton', sql`${t.id} = 1`),
-    check('settings_capacity_positive', sql`${t.capacity} IS NULL OR ${t.capacity} > 0`),
+    uniqueIndex('weeks_single_open').on(t.open).where(sql`${t.open}`),
+    index('weeks_start_date_idx').on(t.startDate),
+    check('weeks_capacity_positive', sql`${t.capacity} IS NULL OR ${t.capacity} > 0`),
+    check(
+      'weeks_window_order',
+      sql`${t.opensAt} IS NULL OR ${t.closesAt} IS NULL OR ${t.closesAt} > ${t.opensAt}`,
+    ),
   ],
 )
 
@@ -48,7 +67,10 @@ export const bookings = pgTable(
   'bookings',
   {
     id: uuid('id').primaryKey(),
-    weekLabel: text('week_label').notNull(),
+    /** Renaming a week renames its bookings too. */
+    weekLabel: text('week_label')
+      .notNull()
+      .references(() => weeks.label, { onUpdate: 'cascade' }),
     nameEnc: text('name_enc').notNull(),
     nameHash: text('name_hash').notNull(),
     contactEnc: text('contact_enc').notNull(),
@@ -161,4 +183,4 @@ export const sessions = pgTable(
 export type BookingRow = typeof bookings.$inferSelect
 export type UserRow = typeof users.$inferSelect
 export type AttendanceRow = typeof attendance.$inferSelect
-export type SettingsRow = typeof settings.$inferSelect
+export type WeekRow = typeof weeks.$inferSelect

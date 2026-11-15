@@ -2,6 +2,7 @@ import { buildApp } from '../src/app.js'
 import { loadConfig, type AppConfig } from '../src/config/env.js'
 import { openDatabase } from '../src/db/client.js'
 import { generateKey } from '../src/lib/crypto.js'
+import { localTime, mondayOf, weekLabelFor } from '../src/lib/time.js'
 import { createUser } from '../src/modules/auth/auth.service.js'
 
 export const ADMIN_TOKEN = 'test-admin-token-0123456789abcdefghijklmnop'
@@ -55,3 +56,6 @@ export const validBooking = (overrides: Record<string, unknown> = {}) => ({
   consent: true,
   ...overrides,
 })
+
+/** Label of the week a fresh database starts with (the current calendar week). */
+export const seededWeekLabel = () => weekLabelFor(mondayOf(localTime(new Date(), 'Asia/Ho_Chi_Minh').date))

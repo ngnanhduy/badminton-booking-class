@@ -78,8 +78,8 @@ UI-only work, with no backend: set `VITE_DEMO=true` in `frontend/.env.local`.
 
 | Who | Gets |
 | --- | --- |
-| Students (no account) | Book, look up, change or delete their own booking |
-| **Admin** (`admin`) | Admin page `/quan-tri`: all bookings with contacts, CSV export, deleting bookings, class settings (week, slots, capacity, open/closed), admin accounts (add, reset password, delete) |
+| Students (no account) | Book, look up, change or delete their own booking; check in to today's class at `/diem-danh` |
+| **Admin** (`admin`) | Admin page `/quan-tri`: bookings of any week with contacts, CSV export, deleting bookings, attendance, weeks (create, open/close registration, history), per-week settings (slots, capacity, opening time), admin accounts (add, reset password, delete) |
 
 Permissions are checked by the API on every request; the Vue route guards only decide what to
 show. To protect a new admin-only API route, call `requireRole(request, ['admin'])` (or register
@@ -115,7 +115,7 @@ is remembered in the browser.
 
 ## Accessing the database yourself
 
-The data is in tables named `settings`, `bookings` and `audit_logs`. You can browse them in three
+The data is in tables named `weeks`, `bookings`, `attendance` and `audit_logs`. You can browse them in three
 ways:
 
 1. **Drizzle Studio**, the quickest: run `npm run db:studio -w backend` and open the link it
@@ -132,13 +132,16 @@ ways:
 4. **The admin API** or the **export script**, for decrypted views.
 
 Personal data columns (`name_enc`, `contact_enc`, `makeup_enc`) show as ciphertext such as
-`v1.1.xkvm…` in any database tool. That's intended. Class settings in the `settings` table are
-plain text, so you can edit the week, slots, capacity and open/closed directly there.
+`v1.1.xkvm…` in any database tool. That's intended. Each week's settings in the `weeks` table are
+plain text, so you can edit slots, capacity and opening times directly there.
 
 ### Each week
 
-Change `week_label` in the `settings` table (for example `16/11 - 22/11`), or use the admin API.
-Bookings are grouped by week label, so per-slot counts start again from zero.
+On **Quản trị → Tuần học**, create the next week (slots, rules and capacity are copied from the
+latest week), close the current week, then open the new one, optionally from a set time. Only one
+week can be open for registration; the home page shows that week. Old weeks stay in the list with
+their settings, bookings and attendance.
+Bookings are grouped by week, so per-slot counts start again from zero.
 
 ## API (`/api/v1`)
 
@@ -148,6 +151,7 @@ Bookings are grouped by week label, so per-slot counts start again from zero.
 | `POST /bookings`         | `{ zaloName, contact, count, slots, makeup, consent: true }` | Create (201) or update (200) this week's booking |
 | `POST /bookings/lookup`  | `{ contact }`                                                | The student's booking (name and sessions, never the contact) |
 | `POST /bookings/delete`  | `{ contact }`                                                | Delete the booking and its personal data |
+| `POST /checkin`          | `{ contact }`                                                | Self check-in for a class booked today, from `CHECKIN_EARLY_MINUTES` before it starts until it ends (`CLASS_TIMEZONE`) |
 | `GET /health`            | –                                                            | Health check                             |
 | `GET /auth/me`           | –                                                            | `{ user }`: `{ id, email, name, role }` or null |
 | `POST /auth/login`       | `{ email, password }`                                        | Signs in and sets the session cookie (10 tries / 15 min per IP) |
@@ -163,7 +167,11 @@ The phone or email always travels in a POST body, never in the URL. Errors retur
 
 - `GET /bookings?week=&includeContact=true`: decrypted bookings
 - `DELETE /bookings/:id`
-- `PUT /settings`: change week, rules, slots, capacity or open
+- `GET /weeks`: every week (history included) with its settings and counts
+- `POST /weeks` with body `{ weekLabel, startDate?, open?, opensAt?, closesAt?, … }`: create a week; `open: true` fails with `WEEK_ALREADY_OPEN` while another week is open
+- `PUT /weeks/:id`: change a week's label, start date, slots, rules, capacity, open/close or opening times. `slotRenames: [{ from, to }]` moves that week's bookings and attendance when a slot's time changes; `GET /weeks` returns per-slot booking `counts`
+- `GET /attendance?week=`, `PUT /attendance`: attendance marks (self check-ins have `self: true`)
+- `PUT /settings`: same as `PUT /weeks/:id` for the week shown on the home page
 - `GET /users`: admin accounts with last sign-in
 - `POST /users` with body `{ email, name }`: returns `{ user, temporaryPassword }` (shown once)
 - `POST /users/:id/reset-password`: returns `{ temporaryPassword }`, signs that account out

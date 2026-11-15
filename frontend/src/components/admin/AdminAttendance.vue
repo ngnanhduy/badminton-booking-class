@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, CheckCheck, ClipboardCheck, RefreshCw, Search } from '@lucide/vue'
 
@@ -7,6 +7,8 @@ import BaseAlert from '@/components/ui/BaseAlert.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import WeekPicker from '@/components/admin/WeekPicker.vue'
+import { useAdminWeeks } from '@/composables/useAdminWeeks'
 import { dayName, slotShort, timeRange } from '@/i18n/format'
 import { adminApi } from '@/services/admin'
 import { errorMessage } from '@/services/api'
@@ -15,6 +17,7 @@ import { mergeSlots } from '@/utils/slots'
 import { slotDate } from '@/utils/week'
 
 const { t } = useI18n()
+const { selectedWeek } = useAdminWeeks()
 
 const rows = ref<AdminBooking[]>([])
 const weekLabel = ref('')
@@ -26,6 +29,8 @@ const selectedSlot = ref('')
 const marks = reactive(new Map<string, boolean>())
 /** Keys currently being saved. */
 const saving = reactive(new Set<string>())
+/** Keys the student checked in themselves (self check-in). */
+const selfMarked = reactive(new Set<string>())
 
 const keyOf = (bookingId: string, slot: string) => `${bookingId}|${slot}`
 
@@ -65,6 +70,7 @@ const members = computed(() => {
       session: b.slots.indexOf(slot) + 1,
       key: keyOf(b.id, slot),
       status: marks.get(keyOf(b.id, slot)),
+      self: selfMarked.has(keyOf(b.id, slot)),
     }))
     .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
 })
@@ -81,14 +87,20 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
+    const week = selectedWeek.value
     const [bookings, attendance] = await Promise.all([
-      adminApi.listBookings(),
-      adminApi.listAttendance(),
+      adminApi.listBookings({ week }),
+      adminApi.listAttendance(week),
     ])
+    if (week !== selectedWeek.value) return // a newer load is on its way
     rows.value = bookings.bookings
     weekLabel.value = bookings.weekLabel
     marks.clear()
-    for (const r of attendance.records) marks.set(keyOf(r.bookingId, r.slot), r.present)
+    selfMarked.clear()
+    for (const r of attendance.records) {
+      marks.set(keyOf(r.bookingId, r.slot), r.present)
+      if (r.self) selfMarked.add(keyOf(r.bookingId, r.slot))
+    }
     pickDefaultSlot()
   } catch (e) {
     error.value = errorMessage(e, t('adminAttendance.loadFailed'))
@@ -97,6 +109,7 @@ async function load() {
   }
 }
 onMounted(load)
+watch(selectedWeek, load)
 
 /** Saves immediately (optimistic); reverts if the server refuses. */
 async function save(changes: AttendanceMark[]) {
@@ -108,6 +121,7 @@ async function save(changes: AttendanceMark[]) {
   for (const c of changes) {
     const key = keyOf(c.bookingId, c.slot)
     marks.set(key, c.present)
+    selfMarked.delete(key)
     saving.add(key)
   }
   try {
@@ -143,9 +157,7 @@ function markAllPresent() {
     <BaseCard :padded="false" solid>
       <div class="flex flex-col gap-3 p-4 sm:p-5">
         <div class="flex items-center justify-between gap-3">
-          <h2 class="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-            {{ t('adminAttendance.chooseSlot') }}
-          </h2>
+          <WeekPicker class="w-full sm:w-60" />
           <BaseButton
             variant="secondary"
             size="sm"
@@ -157,6 +169,9 @@ function markAllPresent() {
           </BaseButton>
         </div>
 
+        <h2 v-if="slots.length" class="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+          {{ t('adminAttendance.chooseSlot') }}
+        </h2>
         <div
           v-if="slots.length"
           class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
@@ -285,6 +300,7 @@ function markAllPresent() {
                 <span class="block truncate font-medium">{{ m.name }}</span>
                 <span class="block text-xs text-zinc-500 dark:text-zinc-400">
                   {{ t('common.session', { n: m.session }) }}
+                  <template v-if="m.self"> · {{ t('adminAttendance.selfCheckedIn') }}</template>
                 </span>
               </span>
               <span

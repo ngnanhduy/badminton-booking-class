@@ -8,10 +8,18 @@ export interface PrivacyInfo {
   controllerContact: string
 }
 
+/** 'upcoming' = switched on, but the opening time hasn't come yet. */
+export type RegistrationStatus = 'open' | 'upcoming' | 'closed'
+
 /** Weekly schedule returned by `GET /api/v1/schedule`. */
 export interface ScheduleConfig {
-  /** Current week, e.g. "9/11 - 15/11". Bookings are grouped by this label. */
+  /**
+   * The week open for registration (else the latest week), e.g. "9/11 - 15/11". Bookings
+   * are grouped by this label.
+   */
   weekLabel: string
+  /** First day of the week, "YYYY-MM-DD", or null for older weeks. */
+  startDate: string | null
   /** Class rules, one per line. */
   rules: string[]
   /** Slot labels allowed for session 1, e.g. "Thứ 2 18h - 20h". */
@@ -20,10 +28,17 @@ export interface ScheduleConfig {
   slots2: string[]
   /** Max students per slot, or `null` for unlimited. */
   capacity: number | null
-  /** Whether bookings are currently accepted. */
+  /** The admin's on/off switch. Use `status` to know whether bookings are accepted now. */
   open: boolean
+  /** Registration window of the current week (ISO date-time), or null when unbounded. */
+  opensAt: string | null
+  closesAt: string | null
+  /** Whether bookings are accepted (switch + window), computed by the server. */
+  status: RegistrationStatus
   /** Number of bookings per slot label for the current week. */
   counts: Record<string, number>
+  /** Self check-in opens this many minutes before a class starts. */
+  checkInEarlyMinutes: number
   /** Number of students who booked this week. */
   totalBookings: number
   privacy: PrivacyInfo
@@ -65,6 +80,16 @@ export interface ExistingBooking {
   slots: string[]
   makeup: string
   weekLabel: string
+}
+
+/** Result of a self check-in. */
+export interface CheckInResult {
+  zaloName: string
+  weekLabel: string
+  /** The session checked in for, e.g. "Thứ 2 18h - 20h". */
+  slot: string
+  /** True when it was already marked present (nothing changed). */
+  alreadyCheckedIn: boolean
 }
 
 export interface LookupResponse {

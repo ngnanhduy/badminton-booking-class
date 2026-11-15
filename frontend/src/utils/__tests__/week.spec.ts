@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { slotDate, weekStartDate } from '../week'
+import {
+  fromLocalInput,
+  nextWeekStart,
+  slotDate,
+  toLocalInput,
+  weekLabelFromStart,
+  weekStartDate,
+} from '../week'
 
 const today = new Date(2026, 10, 10) // 10 Nov 2026
 
@@ -23,5 +30,43 @@ describe('week dates', () => {
   it('returns empty for unknown labels or days', () => {
     expect(slotDate('Tuần này', 0, today)).toBe('')
     expect(slotDate('9/11 - 15/11', 7, today)).toBe('')
+  })
+})
+
+describe('new week suggestions', () => {
+  it('labels a week from its first day, across months and years', () => {
+    expect(weekLabelFromStart('2026-11-16')).toBe('16/11 - 22/11')
+    expect(weekLabelFromStart('2026-11-30')).toBe('30/11 - 6/12')
+    expect(weekLabelFromStart('2026-12-28')).toBe('28/12 - 3/1')
+    expect(weekLabelFromStart('')).toBe('')
+  })
+
+  it('suggests the week after the latest one', () => {
+    expect(nextWeekStart({ startDate: '2026-11-09', weekLabel: 'x' }, today)).toBe('2026-11-16')
+    // Older weeks without a stored date: read from the label.
+    expect(
+      nextWeekStart({ startDate: null, weekLabel: '29/12 - 4/1' }, new Date(2026, 11, 28)),
+    ).toBe('2027-01-05')
+  })
+
+  it('falls back to next Monday', () => {
+    expect(nextWeekStart(undefined, today)).toBe('2026-11-16') // today is Tuesday 10/11
+    expect(nextWeekStart({ startDate: null, weekLabel: 'Tuần lễ' }, new Date(2026, 10, 16))).toBe(
+      '2026-11-23',
+    )
+  })
+})
+
+describe('datetime-local conversion', () => {
+  it('round-trips through local time', () => {
+    const iso = new Date(2026, 10, 16, 20, 30).toISOString()
+    expect(toLocalInput(iso)).toBe('2026-11-16T20:30')
+    expect(fromLocalInput('2026-11-16T20:30')).toBe(iso)
+  })
+
+  it('treats empty or invalid values as "no time"', () => {
+    expect(toLocalInput(null)).toBe('')
+    expect(fromLocalInput('')).toBeNull()
+    expect(fromLocalInput('nope')).toBeNull()
   })
 })

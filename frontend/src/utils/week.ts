@@ -18,6 +18,64 @@ export function weekStartDate(weekLabel: string, today = new Date()): Date | nul
   )
 }
 
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+/** "YYYY-MM-DD" (local date), the value format of `<input type="date">`. */
+export const toDateInput = (d: Date) =>
+  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+
+/** Local Date from "YYYY-MM-DD", or null. */
+function fromDateInput(value: string): Date | null {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return null
+  const d = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+/** Label for the week starting on a date: "2026-11-16" → "16/11 - 22/11". "" if invalid. */
+export function weekLabelFromStart(startDate: string): string {
+  const start = fromDateInput(startDate)
+  if (!start) return ''
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6)
+  const dm = (d: Date) => `${d.getDate()}/${d.getMonth() + 1}`
+  return `${dm(start)} - ${dm(end)}`
+}
+
+/**
+ * Suggested first day for a new week: 7 days after the latest week's start (its date, or
+ * the one in its label), or else next Monday.
+ */
+export function nextWeekStart(
+  latest: { startDate: string | null; weekLabel: string } | undefined,
+  today = new Date(),
+): string {
+  const start =
+    (latest?.startDate && fromDateInput(latest.startDate)) ||
+    (latest && weekStartDate(latest.weekLabel, today))
+  if (start)
+    return toDateInput(new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7))
+  const daysToMonday = (8 - today.getDay()) % 7 || 7
+  return toDateInput(
+    new Date(today.getFullYear(), today.getMonth(), today.getDate() + daysToMonday),
+  )
+}
+
+/** Value for an `<input type="datetime-local">` (local time) from an ISO date-time, or "". */
+export function toLocalInput(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** ISO date-time from an `<input type="datetime-local">` value (local time), or null if empty/invalid. */
+export function fromLocalInput(value: string): string | null {
+  if (!value) return null
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString()
+}
+
 /** Calendar date ("10/11") for a weekday index (0 = Monday) in the given week, or "". */
 export function slotDate(weekLabel: string, dayIndex: number, today = new Date()): string {
   if (dayIndex < 0 || dayIndex > 6) return ''

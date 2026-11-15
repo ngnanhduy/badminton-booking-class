@@ -36,6 +36,16 @@ export const formatDateTime = (iso: string) =>
     minute: '2-digit',
   })
 
+/** "T2, 16/11, 20:00" / "Mon, 11/16, 08:00 PM" — for registration opening/closing times. */
+export const formatWhen = (iso: string) =>
+  new Date(iso).toLocaleString(intlLocale(), {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
 export const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString(intlLocale(), {
     day: '2-digit',

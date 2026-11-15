@@ -2,6 +2,7 @@ import { appConfig } from '@/config/app'
 import type {
   ApiErrorBody,
   BookingPayload,
+  CheckInResult,
   DeleteResponse,
   ExistingBooking,
   LookupResponse,
@@ -23,6 +24,8 @@ export interface BookingApi {
   deleteBooking(contact: string): Promise<DeleteResponse>
   /** Public members dashboard: names, slots and attendance totals (no contact details). */
   listMembers(): Promise<MemberList>
+  /** Marks the student present for the session they booked today (during class time). */
+  checkIn(contact: string): Promise<CheckInResult>
 }
 
 /** JSON request to the backend. The session cookie is sent automatically (same origin). */
@@ -85,6 +88,8 @@ function createHttpApi(): BookingApi {
       request<DeleteResponse>('/bookings/delete', { method: 'POST', body: { contact } }),
 
     listMembers: () => request<MemberList>('/members'),
+
+    checkIn: (contact) => request<CheckInResult>('/checkin', { method: 'POST', body: { contact } }),
   }
 }
 

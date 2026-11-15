@@ -42,15 +42,17 @@ describe('admin API', () => {
     expect(actions).toContain('admin.list_with_contact')
   })
 
-  it('updates settings', async () => {
+  it('updates the current week; renaming it keeps its bookings', async () => {
     const res = await ctx.app.inject({
       method: 'PUT',
       url: '/api/v1/admin/settings',
       headers: auth,
-      payload: { weekLabel: '16/11 - 22/11', capacity: null },
+      payload: { weekLabel: 'Tuần đổi tên', capacity: null },
     })
     expect(res.statusCode).toBe(200)
-    expect(res.json()).toMatchObject({ weekLabel: '16/11 - 22/11', capacity: null, totalBookings: 0 })
+    expect(res.json()).toMatchObject({ weekLabel: 'Tuần đổi tên', capacity: null, totalBookings: 1 })
+    const list = await ctx.app.inject({ method: 'GET', url: '/api/v1/admin/bookings', headers: auth })
+    expect(list.json()).toMatchObject({ weekLabel: 'Tuần đổi tên', bookings: [{ weekLabel: 'Tuần đổi tên' }] })
   })
 
   it('rejects bearer tokens when ADMIN_TOKEN is unset', async () => {

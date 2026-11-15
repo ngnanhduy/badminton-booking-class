@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { CalendarClock, CalendarDays, PenLine, UsersRound } from '@lucide/vue'
+import { CalendarClock, CalendarDays, PenLine, UserCheck, UsersRound } from '@lucide/vue'
 
 import { useClubName } from '@/composables/useClubName'
 import { appConfig } from '@/config/app'
@@ -16,6 +16,7 @@ const clubName = useClubName()
 const LINKS = [
   { name: 'booking', labelKey: 'nav.booking', icon: PenLine },
   { name: 'edit', labelKey: 'nav.edit', icon: CalendarClock },
+  { name: 'checkin', labelKey: 'nav.checkIn', icon: UserCheck },
   { name: 'schedule', labelKey: 'nav.schedule', icon: CalendarDays },
   { name: 'members', labelKey: 'nav.members', icon: UsersRound },
 ] as const
@@ -54,10 +55,12 @@ const LINKS = [
           v-for="link in LINKS"
           :key="link.name"
           :to="{ name: link.name }"
-          class="flex h-8 items-center gap-1.5 rounded-lg px-2 text-[0.8125rem] font-medium whitespace-nowrap text-zinc-600 transition hover:text-zinc-900 aria-[current=page]:bg-white aria-[current=page]:text-zinc-900 aria-[current=page]:shadow-sm min-[380px]:px-2.5 min-[380px]:text-sm sm:px-3 dark:text-zinc-400 dark:hover:text-white dark:aria-[current=page]:bg-zinc-700 dark:aria-[current=page]:text-white"
+          :title="t(link.labelKey)"
+          class="flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm font-medium whitespace-nowrap text-zinc-600 transition hover:text-zinc-900 aria-[current=page]:bg-white aria-[current=page]:text-zinc-900 aria-[current=page]:shadow-sm min-[380px]:px-2.5 sm:px-3 dark:text-zinc-400 dark:hover:text-white dark:aria-[current=page]:bg-zinc-700 dark:aria-[current=page]:text-white"
         >
-          <component :is="link.icon" class="hidden size-4 sm:block" aria-hidden="true" />
-          {{ t(link.labelKey) }}
+          <component :is="link.icon" class="size-4" aria-hidden="true" />
+          <!-- Phones: icons only (5 links don't fit as text); the label stays for screen readers. -->
+          <span class="sr-only lg:not-sr-only">{{ t(link.labelKey) }}</span>
         </RouterLink>
       </nav>
 

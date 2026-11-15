@@ -2,7 +2,7 @@ import { desc, eq } from 'drizzle-orm'
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 
-import { bookings, ROLES, settings } from '../../db/schema.js'
+import { bookings, ROLES } from '../../db/schema.js'
 import { forbidden, notFound } from '../../lib/errors.js'
 import { listAttendance, markAttendance } from '../attendance/attendance.service.js'
 import { audit, listAuditLogs } from '../audit/audit.service.js'
@@ -10,18 +10,38 @@ import { requireAdmin, type AdminActor } from '../auth/auth.guard.js'
 import { NewPassword } from '../auth/auth.routes.js'
 import { createUser, deleteUser, isValidLoginId, listUsers, resetPassword } from '../auth/auth.service.js'
 import { decryptBooking, decryptContact, purgeExpiredBookings } from '../bookings/booking.service.js'
-import { getSchedule, getSettings } from '../schedule/schedule.service.js'
+import { getSchedule } from '../schedule/schedule.service.js'
+import { createWeek, getCurrentWeek, listWeeks, toWeekDto, updateWeek } from '../weeks/weeks.service.js'
 
-const SettingsBody = z
+/** An ISO date-time with offset ("2026-11-16T13:00:00.000Z"), or null to clear it. */
+const IsoDateTime = z.iso
+  .datetime({ offset: true })
+  .transform((value) => new Date(value))
+  .nullable()
+
+const SlotLabel = z.string().trim().min(1).max(100)
+
+/** Settings of a week; every field optional (only the given ones change). */
+const WeekFields = z
   .object({
     weekLabel: z.string().trim().min(1).max(50),
+    /** First day of the week, "YYYY-MM-DD". */
+    startDate: z.iso.date().nullable(),
     rules: z.array(z.string().trim().min(1).max(500)).max(20),
-    slots1: z.array(z.string().trim().min(1).max(100)).min(1).max(50),
-    slots2: z.array(z.string().trim().min(1).max(100)).min(1).max(50),
+    slots1: z.array(SlotLabel).min(1).max(50),
+    slots2: z.array(SlotLabel).min(1).max(50),
     capacity: z.number().int().positive().nullable(),
     open: z.boolean(),
+    opensAt: IsoDateTime,
+    closesAt: IsoDateTime,
+    /** Slots whose time changed: their bookings and attendance move to the new label. */
+    slotRenames: z
+      .array(z.object({ from: SlotLabel, to: SlotLabel }))
+      .max(50),
   })
   .partial()
+
+const CreateWeekBody = WeekFields.omit({ slotRenames: true }).required({ weekLabel: true })
 
 const ListQuery = z.object({
   week: z.string().optional(),
@@ -74,7 +94,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   /** Decrypted bookings for a week (default: current). Contact only with includeContact=true. */
   app.get('/bookings', async (request) => {
     const query = ListQuery.parse(request.query)
-    const week = query.week ?? (await getSettings(app.deps.db)).weekLabel
+    const week = query.week ?? (await getCurrentWeek(app.deps.db)).label
     const rows = await app.deps.db
       .select()
       .from(bookings)
@@ -115,7 +135,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   /** Present/absent marks for a week's bookings (default: current week). */
   app.get('/attendance', async (request) => {
     const { week } = z.object({ week: z.string().optional() }).parse(request.query)
-    const weekLabel = week ?? (await getSettings(app.deps.db)).weekLabel
+    const weekLabel = week ?? (await getCurrentWeek(app.deps.db)).label
     return { weekLabel, records: await listAttendance(app.deps.db, weekLabel) }
   })
 
@@ -125,18 +145,32 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return markAttendance(app.deps, marks, by(request))
   })
 
-  /** Update class settings (week, rules, slots, capacity, open). */
+  /** Every week (history included), newest first, with its settings and counts. */
+  app.get('/weeks', async () => ({ weeks: await listWeeks(app.deps.db) }))
+
+  /**
+   * Creates a week. Slots, rules and capacity not given are copied from the latest week.
+   * With `open: true` it fails (WEEK_ALREADY_OPEN) while another week is open.
+   */
+  app.post('/weeks', async (request, reply) => {
+    const body = CreateWeekBody.parse(request.body)
+    const week = await createWeek(app.deps.db, body, by(request))
+    return reply
+      .status(201)
+      .send({ week: toWeekDto(week), config: await getSchedule(app.deps.db, app.deps.config) })
+  })
+
+  /** Changes any week's settings, including opening or closing its registration. */
+  app.put<{ Params: { id: string } }>('/weeks/:id', async (request) => {
+    const id = z.uuid().parse(request.params.id)
+    const week = await updateWeek(app.deps.db, id, WeekFields.parse(request.body), by(request))
+    return { week: toWeekDto(week), config: await getSchedule(app.deps.db, app.deps.config) }
+  })
+
+  /** Shortcut: changes the settings of the week the public pages show. */
   app.put('/settings', async (request) => {
-    const body = SettingsBody.parse(request.body)
-    await app.deps.db
-      .update(settings)
-      .set({ ...body, updatedAt: new Date() })
-      .where(eq(settings.id, 1))
-    await audit(app.deps.db, {
-      ...by(request),
-      action: 'settings.update',
-      detail: { fields: Object.keys(body) },
-    })
+    const current = await getCurrentWeek(app.deps.db)
+    await updateWeek(app.deps.db, current.id, WeekFields.parse(request.body), by(request))
     return getSchedule(app.deps.db, app.deps.config)
   })
 

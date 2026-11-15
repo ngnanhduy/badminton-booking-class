@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Download, Inbox, RefreshCw, Search, Trash2 } from '@lucide/vue'
 
@@ -8,6 +8,8 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseSwitch from '@/components/ui/BaseSwitch.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import WeekPicker from '@/components/admin/WeekPicker.vue'
+import { useAdminWeeks } from '@/composables/useAdminWeeks'
 import { formatDateTime, slotShort } from '@/i18n/format'
 import { adminApi } from '@/services/admin'
 import { errorMessage } from '@/services/api'
@@ -17,6 +19,7 @@ import { parseSlot } from '@/utils/slots'
 
 const { t } = useI18n()
 const schedule = useScheduleStore()
+const { selectedWeek } = useAdminWeeks()
 
 const rows = ref<AdminBooking[]>([])
 const weekLabel = ref('')
@@ -31,7 +34,9 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const data = await adminApi.listBookings({ includeContact: showContacts.value })
+    const week = selectedWeek.value
+    const data = await adminApi.listBookings({ includeContact: showContacts.value, week })
+    if (week !== selectedWeek.value) return // a newer load is on its way
     rows.value = data.bookings
     weekLabel.value = data.weekLabel
   } catch (e) {
@@ -41,6 +46,10 @@ async function load() {
   }
 }
 onMounted(load)
+watch(selectedWeek, () => {
+  confirmingId.value = null
+  load()
+})
 
 function toggleContacts(value: boolean) {
   showContacts.value = value
@@ -112,18 +121,21 @@ function exportCsv() {
   <div class="space-y-4">
     <BaseCard :padded="false" solid>
       <div class="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
-        <div class="relative w-full lg:max-w-xs">
-          <Search
-            class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400"
-            aria-hidden="true"
-          />
-          <input
-            v-model="query"
-            type="search"
-            :placeholder="t('adminBookings.search')"
-            :aria-label="t('adminBookings.searchLabel')"
-            class="block h-10 w-full rounded-xl bg-white pr-3 pl-9 text-sm ring-1 ring-zinc-950/10 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-950/40 dark:ring-white/10"
-          />
+        <div class="flex w-full flex-col gap-2 sm:flex-row lg:max-w-xl">
+          <WeekPicker class="sm:w-60 sm:shrink-0" />
+          <div class="relative w-full">
+            <Search
+              class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400"
+              aria-hidden="true"
+            />
+            <input
+              v-model="query"
+              type="search"
+              :placeholder="t('adminBookings.search')"
+              :aria-label="t('adminBookings.searchLabel')"
+              class="block h-10 w-full rounded-xl bg-white pr-3 pl-9 text-sm ring-1 ring-zinc-950/10 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-950/40 dark:ring-white/10"
+            />
+          </div>
         </div>
         <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
           <BaseSwitch

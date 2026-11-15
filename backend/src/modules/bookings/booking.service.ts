@@ -1,14 +1,15 @@
 import { randomUUID } from 'node:crypto'
 import { and, eq, lt, ne, notInArray } from 'drizzle-orm'
 
-import { attendance, bookings, settings, type BookingRow } from '../../db/schema.js'
+import { attendance, bookings, weeks, type BookingRow } from '../../db/schema.js'
 import { normalizeContact, normalizeName } from '../../lib/contact.js'
 import { blindIndex, decrypt, encrypt, type Keyring } from '../../lib/crypto.js'
 import { badRequest, conflict, notFound } from '../../lib/errors.js'
 import { dayLabel, findSameDay } from '../../lib/slots.js'
 import type { AppDeps } from '../../types.js'
 import { audit, type AuditActor } from '../audit/audit.service.js'
-import { countSlots, getSettings } from '../schedule/schedule.service.js'
+import { countSlots } from '../schedule/schedule.service.js'
+import { getCurrentWeek, registrationStatus } from '../weeks/weeks.service.js'
 import type { SubmitBookingInput } from './booking.schemas.js'
 
 /** Decrypted view of a booking. Only ever returned to the verified student or an admin. */
@@ -68,8 +69,8 @@ export function decryptContact(keyring: Keyring, row: BookingRow) {
 }
 
 /**
- * Creates or updates this week's booking for a contact. Runs in a transaction that locks
- * the settings row, so concurrent submissions can't overbook a slot.
+ * Creates or updates a booking for a contact in the week open for registration. Runs in a
+ * transaction that locks that week's row, so concurrent submissions can't overbook a slot.
  */
 export async function submitBooking(deps: AppDeps, input: SubmitBookingInput) {
   const { db, keyring, config } = deps
@@ -78,9 +79,16 @@ export async function submitBooking(deps: AppDeps, input: SubmitBookingInput) {
   const nameHash = blindIndex(keyring, 'name', normalizeName(input.zaloName))
 
   return db.transaction(async (tx) => {
-    const [s] = await tx.select().from(settings).where(eq(settings.id, 1)).for('update')
-    if (!s) throw new Error('Settings row missing')
-    if (!s.open) throw conflict('BOOKING_CLOSED', 'Đăng ký tuần này đã đóng.')
+    const [week] = await tx.select().from(weeks).where(eq(weeks.open, true)).for('update')
+    if (!week) throw conflict('BOOKING_CLOSED', 'Đăng ký tuần này đã đóng.')
+    const s = { ...week, weekLabel: week.label }
+    const status = registrationStatus(s)
+    if (status === 'upcoming') {
+      throw conflict('BOOKING_NOT_OPEN', 'Đăng ký tuần này chưa mở.', {
+        opensAt: s.opensAt!.toISOString(),
+      })
+    }
+    if (status === 'closed') throw conflict('BOOKING_CLOSED', 'Đăng ký tuần này đã đóng.')
 
     const slots = input.slots.slice(0, input.count)
     for (let i = 0; i < input.count; i++) {
@@ -181,13 +189,13 @@ export async function submitBooking(deps: AppDeps, input: SubmitBookingInput) {
 export async function lookupBooking(deps: AppDeps, rawContact: string) {
   const { db, keyring } = deps
   const hash = contactIndex(keyring, rawContact)
-  const s = await getSettings(db)
+  const weekLabel = (await getCurrentWeek(db)).label
   const [row] = await db
     .select()
     .from(bookings)
-    .where(and(eq(bookings.weekLabel, s.weekLabel), eq(bookings.contactHash, hash)))
-  if (!row) throw bookingNotFound(s.weekLabel)
-  await audit(db, { actor: 'student', action: 'booking.access', bookingId: row.id, weekLabel: s.weekLabel })
+    .where(and(eq(bookings.weekLabel, weekLabel), eq(bookings.contactHash, hash)))
+  if (!row) throw bookingNotFound(weekLabel)
+  await audit(db, { actor: 'student', action: 'booking.access', bookingId: row.id, weekLabel })
   const view = decryptBooking(keyring, row)
   return {
     zaloName: view.zaloName,
@@ -202,14 +210,14 @@ export async function lookupBooking(deps: AppDeps, rawContact: string) {
 export async function deleteBookingByContact(deps: AppDeps, rawContact: string) {
   const { db, keyring } = deps
   const hash = contactIndex(keyring, rawContact)
-  const s = await getSettings(db)
+  const weekLabel = (await getCurrentWeek(db)).label
   const deleted = await db
     .delete(bookings)
-    .where(and(eq(bookings.weekLabel, s.weekLabel), eq(bookings.contactHash, hash)))
+    .where(and(eq(bookings.weekLabel, weekLabel), eq(bookings.contactHash, hash)))
     .returning({ id: bookings.id })
-  if (!deleted.length) throw bookingNotFound(s.weekLabel)
+  if (!deleted.length) throw bookingNotFound(weekLabel)
   for (const { id } of deleted) {
-    await audit(db, { actor: 'student', action: 'booking.delete', bookingId: id, weekLabel: s.weekLabel })
+    await audit(db, { actor: 'student', action: 'booking.delete', bookingId: id, weekLabel })
   }
 }
 

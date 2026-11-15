@@ -1,6 +1,5 @@
-/** Initial class settings, inserted once when the database is empty. */
-export const DEFAULT_SETTINGS = {
-  weekLabel: '9/11 - 15/11',
+/** Slots, rules and capacity of the first week, created when the database has no weeks. */
+export const DEFAULT_WEEK = {
   rules: [
     'Không vote = không tính slot học.',
     'Xin off vui lòng nhắn cho Đạt, không nhắn vào gr lớp.',
@@ -39,5 +38,4 @@ export const DEFAULT_SETTINGS = {
     'Chủ nhật 10h - 12h',
   ],
   capacity: 8 as number | null,
-  open: true,
 }

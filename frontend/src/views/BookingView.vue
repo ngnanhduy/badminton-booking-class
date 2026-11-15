@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { CalendarDays, Lock, RefreshCw, WifiOff } from '@lucide/vue'
+import { CalendarClock, CalendarDays, Lock, RefreshCw, WifiOff } from '@lucide/vue'
 
 import BookingForm from '@/components/booking/BookingForm.vue'
 import BookingHero from '@/components/booking/BookingHero.vue'
@@ -14,6 +14,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { appConfig } from '@/config/app'
+import { formatWhen } from '@/i18n/format'
 import { useBookingStore } from '@/stores/booking'
 import { useScheduleStore } from '@/stores/schedule'
 
@@ -98,7 +99,21 @@ function startOver() {
 
         <BookingSkeleton v-else-if="!schedule.config" key="loading" />
 
-        <BaseCard v-else-if="!schedule.config.open" key="closed">
+        <BaseCard v-else-if="schedule.registration === 'upcoming'" key="upcoming">
+          <EmptyState
+            :icon="CalendarClock"
+            :title="$t('booking.upcomingTitle')"
+            :description="
+              $t('booking.upcomingBody', { date: formatWhen(schedule.config.opensAt ?? '') })
+            "
+          >
+            <BaseButton :to="{ name: 'schedule' }" variant="secondary" :icon="CalendarDays">
+              {{ $t('common.viewSchedule') }}
+            </BaseButton>
+          </EmptyState>
+        </BaseCard>
+
+        <BaseCard v-else-if="!schedule.isOpen" key="closed">
           <EmptyState
             :icon="Lock"
             :title="$t('booking.closedTitle')"
@@ -131,6 +146,6 @@ function startOver() {
       </Transition>
     </div>
 
-    <MobileSubmitBar v-if="schedule.config?.open && !booking.result" />
+    <MobileSubmitBar v-if="schedule.isOpen && !booking.result" />
   </div>
 </template>

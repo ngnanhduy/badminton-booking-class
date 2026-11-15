@@ -1,5 +1,6 @@
 import type {
   BookingPayload,
+  CheckInResult,
   DeleteResponse,
   ExistingBooking,
   Member,
@@ -23,6 +24,7 @@ const notFound = (week: string) =>
 export function createDemoConfig(): ScheduleConfig {
   return {
     weekLabel: '9/11 - 15/11',
+    startDate: '2026-11-09',
     rules: [
       'Không vote = không tính slot học.',
       'Xin off vui lòng nhắn cho Đạt, không nhắn vào gr lớp.',
@@ -62,6 +64,9 @@ export function createDemoConfig(): ScheduleConfig {
     ],
     capacity: 8,
     open: true,
+    opensAt: null,
+    closesAt: null,
+    status: 'open',
     counts: {
       'Thứ 2 18h - 20h': 6,
       'Thứ 2 20h - 22h': 3,
@@ -73,6 +78,7 @@ export function createDemoConfig(): ScheduleConfig {
       'Chủ nhật 10h - 12h': 4,
     },
     totalBookings: 17,
+    checkInEarlyMinutes: 30,
     privacy: {
       policyVersion: '2026-11-12',
       retentionDays: 180,
@@ -121,6 +127,7 @@ export function createMockApi(latencyMs = 600): BookingApi {
   const config = createDemoConfig()
   /** Keyed by normalized contact, like the blind index on the server. */
   const bookings = new Map<string, ExistingBooking>()
+  const checkedIn = new Set<string>()
 
   return {
     async getSchedule() {
@@ -145,6 +152,25 @@ export function createMockApi(latencyMs = 600): BookingApi {
       return {
         weekLabel: config.weekLabel,
         members: [...booked, ...createDemoMembers(config.weekLabel)],
+      }
+    },
+
+    /** Demo: any session booked in this browser counts as today's class. */
+    async checkIn(rawContact: string): Promise<CheckInResult> {
+      await delay(latencyMs)
+      const contact = normalizeContact(rawContact)
+      if (!contact) throw invalidContact()
+      const booking = bookings.get(contact.value)
+      if (!booking?.slots[0]) {
+        throw fail(404, 'CHECKIN_NO_CLASS_TODAY', 'Hôm nay bạn không có ca học nào đã đăng ký.')
+      }
+      const alreadyCheckedIn = checkedIn.has(contact.value)
+      checkedIn.add(contact.value)
+      return {
+        zaloName: booking.zaloName,
+        weekLabel: booking.weekLabel,
+        slot: booking.slots[0],
+        alreadyCheckedIn,
       }
     },
 

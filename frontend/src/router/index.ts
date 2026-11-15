@@ -26,6 +26,12 @@ const router = createRouter({
       meta: { titleKey: 'titles.edit' },
     },
     {
+      path: '/diem-danh',
+      name: 'checkin',
+      component: () => import('@/views/CheckInView.vue'),
+      meta: { titleKey: 'titles.checkIn' },
+    },
+    {
       path: '/quyen-rieng-tu',
       name: 'privacy',
       component: () => import('@/views/PrivacyView.vue'),

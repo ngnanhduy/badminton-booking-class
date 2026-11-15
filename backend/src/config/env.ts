@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { z } from 'zod'
 
 import { createKeyring, type Keyring } from '../lib/crypto.js'
+import { isValidTimeZone } from '../lib/time.js'
 
 const base64Key = (name: string) =>
   z
@@ -52,6 +53,13 @@ const EnvSchema = z.object({
   PRIVACY_POLICY_VERSION: z.string().min(1).default('2026-11-12'),
   CONTROLLER_NAME: z.string().default('Lớp Cầu Lông'),
   CONTROLLER_CONTACT: z.string().default(''),
+  /** Time zone the class runs in: slot times ("18h - 20h") and week dates are read in it. */
+  CLASS_TIMEZONE: z
+    .string()
+    .default('Asia/Ho_Chi_Minh')
+    .refine(isValidTimeZone, 'CLASS_TIMEZONE must be an IANA time zone, e.g. Asia/Ho_Chi_Minh'),
+  /** Self check-in opens this many minutes before a class starts (and closes when it ends). */
+  CHECKIN_EARLY_MINUTES: z.coerce.number().int().min(0).max(240).default(30),
   TRUST_PROXY: z
     .enum(['true', 'false'])
     .default('false')

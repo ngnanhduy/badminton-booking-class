@@ -2,17 +2,28 @@ import { and, eq, ne } from 'drizzle-orm'
 
 import type { AppConfig } from '../../config/env.js'
 import type { Db } from '../../db/client.js'
-import { bookings, settings, type SettingsRow } from '../../db/schema.js'
+import { bookings } from '../../db/schema.js'
+import { getCurrentWeek, registrationStatus, type RegistrationStatus } from '../weeks/weeks.service.js'
 
 export interface ScheduleDto {
   weekLabel: string
+  /** First day of the week ("YYYY-MM-DD"), or null for older weeks without one. */
+  startDate: string | null
   rules: string[]
   slots1: string[]
   slots2: string[]
   capacity: number | null
+  /** The admin's on/off switch. */
   open: boolean
+  /** Registration window (ISO), or null when unbounded. */
+  opensAt: string | null
+  closesAt: string | null
+  /** Whether bookings are accepted right now (switch + window). */
+  status: RegistrationStatus
   counts: Record<string, number>
   totalBookings: number
+  /** Self check-in opens this many minutes before a class starts. */
+  checkInEarlyMinutes: number
   privacy: {
     policyVersion: string
     retentionDays: number
@@ -22,12 +33,6 @@ export interface ScheduleDto {
 }
 
 type Reader = Pick<Db, 'select'>
-
-export async function getSettings(db: Reader): Promise<SettingsRow> {
-  const [row] = await db.select().from(settings).where(eq(settings.id, 1))
-  if (!row) throw new Error('Settings row missing — run migrations')
-  return row
-}
 
 /** Bookings per slot for a week, optionally ignoring one booking (the one being updated). */
 export async function countSlots(db: Reader, weekLabel: string, excludeId?: string) {
@@ -48,18 +53,24 @@ export async function countSlots(db: Reader, weekLabel: string, excludeId?: stri
   return { counts, total: rows.length }
 }
 
+/** The week the public pages show (the open one, else the latest), with slot counts. */
 export async function getSchedule(db: Reader, config: AppConfig): Promise<ScheduleDto> {
-  const s = await getSettings(db)
-  const { counts, total } = await countSlots(db, s.weekLabel)
+  const w = await getCurrentWeek(db)
+  const { counts, total } = await countSlots(db, w.label)
   return {
-    weekLabel: s.weekLabel,
-    rules: s.rules,
-    slots1: s.slots1,
-    slots2: s.slots2,
-    capacity: s.capacity,
-    open: s.open,
+    weekLabel: w.label,
+    startDate: w.startDate,
+    rules: w.rules,
+    slots1: w.slots1,
+    slots2: w.slots2,
+    capacity: w.capacity,
+    open: w.open,
+    opensAt: w.opensAt?.toISOString() ?? null,
+    closesAt: w.closesAt?.toISOString() ?? null,
+    status: registrationStatus(w),
     counts,
     totalBookings: total,
+    checkInEarlyMinutes: config.CHECKIN_EARLY_MINUTES,
     privacy: {
       policyVersion: config.PRIVACY_POLICY_VERSION,
       retentionDays: config.RETENTION_DAYS,

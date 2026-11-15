@@ -1,7 +1,7 @@
 import { attendance, bookings, type BookingRow } from '../../db/schema.js'
 import type { AppDeps } from '../../types.js'
 import { decryptName } from '../bookings/booking.service.js'
-import { getSettings } from '../schedule/schedule.service.js'
+import { getCurrentWeek } from '../weeks/weeks.service.js'
 
 /**
  * One student across every week still kept (within the retention period). This is shown
@@ -30,7 +30,7 @@ const slotsOf = (row: BookingRow) =>
 /** Groups every booking by student (same phone/email, via its blind index). */
 export async function listMembers(deps: AppDeps): Promise<{ weekLabel: string; members: MemberView[] }> {
   const { db, keyring } = deps
-  const { weekLabel } = await getSettings(db)
+  const weekLabel = (await getCurrentWeek(db)).label
   const rows = await db.select().from(bookings)
   const marks = await db
     .select({ bookingId: attendance.bookingId, present: attendance.present })

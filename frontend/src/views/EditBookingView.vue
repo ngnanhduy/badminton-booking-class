@@ -173,13 +173,13 @@ async function deleteBooking() {
             size="lg"
             block
             :icon="Pencil"
-            :disabled="schedule.config?.open === false"
+            :disabled="!!schedule.config && !schedule.isOpen"
             @click="startEditing"
           >
             {{ t('edit.change') }}
           </BaseButton>
           <p
-            v-if="schedule.config?.open === false"
+            v-if="!!schedule.config && !schedule.isOpen"
             class="mt-2 text-center text-xs text-zinc-500 dark:text-zinc-400"
           >
             {{ t('edit.closedNote') }}

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { attendance, auditLogs, bookings } from '../src/db/schema.js'
 import { findSameDay, slotDay } from '../src/lib/slots.js'
-import { ADMIN_TOKEN, createTestApp, validBooking } from './helpers.js'
+import { ADMIN_TOKEN, createTestApp, seededWeekLabel, validBooking } from './helpers.js'
 
 let ctx: Awaited<ReturnType<typeof createTestApp>>
 const auth = { authorization: `Bearer ${ADMIN_TOKEN}` }
@@ -71,7 +71,7 @@ describe('attendance', () => {
     await mark([{ bookingId: ids['Hoa'], slot: 'Thứ 2 18h - 20h', present: true }])
 
     const list = (await adminGet('/attendance')).json()
-    expect(list.weekLabel).toBe('9/11 - 15/11')
+    expect(list.weekLabel).toBe(seededWeekLabel())
     expect(list.records).toHaveLength(2)
     expect(list.records).toEqual(
       expect.arrayContaining([
@@ -126,18 +126,20 @@ describe('members dashboard', () => {
     ])
 
     // A later week for Minh Anh (same phone, different format and name spelling).
-    await ctx.app.inject({
-      method: 'PUT',
-      url: '/api/v1/admin/settings',
+    await ctx.app.inject({ method: 'PUT', url: '/api/v1/admin/settings', headers: auth, payload: { open: false } })
+    const next = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/weeks',
       headers: auth,
-      payload: { weekLabel: '16/11 - 22/11' },
+      payload: { weekLabel: 'Tuần sau', open: true },
     })
+    expect(next.statusCode).toBe(201)
     await book({ zaloName: 'Minh Anh 2', contact: '+84 912 345 678' })
 
     const res = await ctx.app.inject({ method: 'GET', url: '/api/v1/members' })
     expect(res.statusCode).toBe(200)
     const body = res.json()
-    expect(body.weekLabel).toBe('16/11 - 22/11')
+    expect(body.weekLabel).toBe('Tuần sau')
     expect(body.members).toHaveLength(2)
 
     const minh = body.members.find((m: { zaloName: string }) => m.zaloName === 'Minh Anh 2')
@@ -145,7 +147,7 @@ describe('members dashboard', () => {
       weeks: 2,
       sessions: 3,
       thisWeek: { count: 1, slots: ['Thứ 2 18h - 20h'] },
-      lastWeekLabel: '16/11 - 22/11',
+      lastWeekLabel: 'Tuần sau',
       attended: 1,
       absent: 1,
     })

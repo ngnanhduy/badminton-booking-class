@@ -19,12 +19,18 @@ export async function listAttendance(db: Pick<Db, 'select'>, weekLabel: string) 
       bookingId: attendance.bookingId,
       slot: attendance.slot,
       present: attendance.present,
+      updatedBy: attendance.updatedBy,
       updatedAt: attendance.updatedAt,
     })
     .from(attendance)
     .innerJoin(bookings, eq(bookings.id, attendance.bookingId))
     .where(eq(bookings.weekLabel, weekLabel))
-  return rows.map((r) => ({ ...r, updatedAt: r.updatedAt.toISOString() }))
+  return rows.map(({ updatedBy, ...r }) => ({
+    ...r,
+    /** Marked by the student with self check-in (not by an admin). */
+    self: updatedBy === 'self',
+    updatedAt: r.updatedAt.toISOString(),
+  }))
 }
 
 /**

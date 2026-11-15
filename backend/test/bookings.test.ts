@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 
 import { auditLogs, bookings } from '../src/db/schema.js'
-import { createTestApp, validBooking } from './helpers.js'
+import { createTestApp, seededWeekLabel, validBooking } from './helpers.js'
 
 let ctx: Awaited<ReturnType<typeof createTestApp>>
 
@@ -23,7 +23,7 @@ describe('GET /schedule', () => {
     const res = await ctx.app.inject({ method: 'GET', url: '/api/v1/schedule' })
     expect(res.statusCode).toBe(200)
     const body = res.json()
-    expect(body.weekLabel).toBe('9/11 - 15/11')
+    expect(body.weekLabel).toBe(seededWeekLabel())
     expect(body.slots1).toContain('Thứ 2 18h - 20h')
     expect(body.totalBookings).toBe(0)
     expect(body.privacy).toMatchObject({ retentionDays: 180 })
@@ -111,18 +111,18 @@ describe('POST /bookings', () => {
   })
 
   it('enforces slot capacity', async () => {
-    await ctx.database.db.execute(sql`UPDATE settings SET capacity = 1`)
+    await ctx.database.db.execute(sql`UPDATE weeks SET capacity = 1`)
     await post('/bookings', validBooking())
     const res = await post('/bookings', validBooking({ zaloName: 'Lan', contact: 'lan@example.com' }))
     expect(res.statusCode).toBe(409)
     expect(res.json().error.code).toBe('SLOT_FULL')
-    await ctx.database.db.execute(sql`UPDATE settings SET capacity = 8`)
+    await ctx.database.db.execute(sql`UPDATE weeks SET capacity = 8`)
   })
 
   it('rejects bookings when closed', async () => {
-    await ctx.database.db.execute(sql`UPDATE settings SET open = false`)
+    await ctx.database.db.execute(sql`UPDATE weeks SET open = false`)
     const res = await post('/bookings', validBooking())
-    await ctx.database.db.execute(sql`UPDATE settings SET open = true`)
+    await ctx.database.db.execute(sql`UPDATE weeks SET open = true`)
     expect(res.json().error.code).toBe('BOOKING_CLOSED')
   })
 })
@@ -137,7 +137,7 @@ describe('lookup and delete (data subject rights)', () => {
       count: 2,
       slots: ['Thứ 2 18h - 20h', 'Thứ 3 14h - 16h'],
       makeup: '',
-      weekLabel: '9/11 - 15/11',
+      weekLabel: seededWeekLabel(),
     })
     expect(res.body).not.toContain('0912')
   })

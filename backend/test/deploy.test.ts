@@ -35,15 +35,16 @@ describe('Supabase lockdown migration', () => {
   it('enables row level security on every table', async () => {
     const ctx = await createTestApp()
     const result = await ctx.database.db.execute(
-      sql`SELECT relname, relrowsecurity FROM pg_class WHERE relname IN ('settings','bookings','audit_logs','users','sessions') ORDER BY relname`,
+      sql`SELECT relname, relrowsecurity FROM pg_class WHERE relname IN ('weeks','bookings','attendance','audit_logs','users','sessions') ORDER BY relname`,
     )
     const rows = (result as unknown as { rows: { relname: string; relrowsecurity: boolean }[] }).rows
     expect(rows).toEqual([
+      { relname: 'attendance', relrowsecurity: true },
       { relname: 'audit_logs', relrowsecurity: true },
       { relname: 'bookings', relrowsecurity: true },
       { relname: 'sessions', relrowsecurity: true },
-      { relname: 'settings', relrowsecurity: true },
       { relname: 'users', relrowsecurity: true },
+      { relname: 'weeks', relrowsecurity: true },
     ])
     // The app (table owner) is not blocked by RLS.
     const res = await ctx.app.inject({ method: 'GET', url: '/api/v1/schedule' })

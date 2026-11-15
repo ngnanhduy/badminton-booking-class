@@ -17,7 +17,7 @@ import { openDatabaseFromConfig } from '../src/db/client.js'
 import { bookings } from '../src/db/schema.js'
 import { audit } from '../src/modules/audit/audit.service.js'
 import { decryptBooking, decryptContact } from '../src/modules/bookings/booking.service.js'
-import { getSettings } from '../src/modules/schedule/schedule.service.js'
+import { getCurrentWeek } from '../src/modules/weeks/weeks.service.js'
 
 const { values: args } = parseArgs({
   options: { week: { type: 'string' }, contacts: { type: 'boolean', default: false } },
@@ -28,7 +28,7 @@ const keyring = keyringFromConfig(config)
 const database = await openDatabaseFromConfig(config)
 const { db } = database
 
-const week = args.week ?? (await getSettings(db)).weekLabel
+const week = args.week ?? (await getCurrentWeek(db)).label
 const rows = await db
   .select()
   .from(bookings)
