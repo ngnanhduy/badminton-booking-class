@@ -55,9 +55,14 @@ function tally(slot: string) {
 
 const current = computed(() => slots.value.find((s) => s.value === selectedSlot.value) ?? null)
 const currentTally = computed(() => (current.value ? tally(current.value.value) : null))
-const currentDate = computed(() =>
-  current.value ? slotDate(weekLabel.value, current.value.dayIndex) : '',
-)
+/** "Thứ 3, 17/11 · 18h – 20h" (date left out when the week label can't be parsed). */
+const currentHeading = computed(() => {
+  const slot = current.value
+  if (!slot) return ''
+  const date = slotDate(weekLabel.value, slot.dayIndex)
+  const day = date ? `${dayName(slot)}, ${date}` : dayName(slot)
+  return `${day} · ${timeRange(slot)}`
+})
 
 const members = computed(() => {
   const slot = selectedSlot.value
@@ -232,10 +237,7 @@ function markAllPresent() {
           class="flex flex-col gap-3 border-t border-zinc-950/5 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5 dark:border-white/[0.07]"
         >
           <div>
-            <p class="font-semibold">
-              {{ dayName(current) }}<template v-if="currentDate"> {{ currentDate }}</template> ·
-              {{ timeRange(current) }}
-            </p>
+            <p class="font-semibold">{{ currentHeading }}</p>
             <p class="mt-0.5 text-sm text-zinc-600 tabular-nums dark:text-zinc-400">
               {{ t('adminAttendance.summary', currentTally) }}
             </p>
