@@ -1,17 +1,44 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  dayTiming,
   fromLocalInput,
   mondayOf,
   nextWeekStart,
   slotDate,
   startDateOf,
   toLocalInput,
+  weekDayDate,
   weekLabelFromStart,
   weekStartDate,
 } from '../week'
 
 const today = new Date(2026, 10, 10) // 10 Nov 2026
+
+describe('weekday dates', () => {
+  it('uses the saved first day of the week', () => {
+    const week = { startDate: '2026-11-16', weekLabel: 'Tuần sau' }
+    expect(weekDayDate(week, 0, today)).toEqual(new Date(2026, 10, 16))
+    expect(weekDayDate(week, 6, today)).toEqual(new Date(2026, 10, 22))
+  })
+
+  it('falls back to the date in the label', () => {
+    const week = { startDate: null, weekLabel: '9/11 - 15/11' }
+    expect(weekDayDate(week, 2, today)).toEqual(new Date(2026, 10, 11))
+  })
+
+  it('has no date for unknown days or unreadable labels', () => {
+    expect(weekDayDate({ startDate: '2026-11-16', weekLabel: '' }, 7, today)).toBeNull()
+    expect(weekDayDate({ startDate: null, weekLabel: 'Tuần đặc biệt' }, 0, today)).toBeNull()
+  })
+
+  it('tells past, today and upcoming days apart', () => {
+    const at = new Date(2026, 10, 10, 21, 30)
+    expect(dayTiming(new Date(2026, 10, 9), at)).toBe('past')
+    expect(dayTiming(new Date(2026, 10, 10), at)).toBe('today')
+    expect(dayTiming(new Date(2026, 10, 11), at)).toBe('upcoming')
+  })
+})
 
 describe('week dates', () => {
   it('finds the Monday of the week label', () => {

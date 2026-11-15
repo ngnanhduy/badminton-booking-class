@@ -104,31 +104,73 @@ export function createDemoConfig(): ScheduleConfig {
   }
 }
 
-/** A few sample members for the demo dashboard. */
-function createDemoMembers(weekLabel: string): Member[] {
+/** Earlier weeks in demo mode (the current one comes from the demo config). */
+const DEMO_PAST_WEEKS = [
+  { weekLabel: '2/11 - 8/11', startDate: '2026-11-02' },
+  { weekLabel: '26/10 - 1/11', startDate: '2026-10-26' },
+]
+
+/** Slots booked that week; `marks` (slot → present) feed the week's attendance total. */
+type DemoWeek = { slots: string[]; marks?: Record<string, boolean> }
+
+/** A few sample members for the demo dashboard, with their booking in `week`. */
+function createDemoMembers(currentWeek: string, week: string) {
+  const [lastWeek, twoWeeksAgo] = DEMO_PAST_WEEKS.map((w) => w.weekLabel) as [string, string]
   const member = (
     zaloName: string,
-    weeks: number,
-    sessions: number,
-    attended: number,
-    absent: number,
-    slots: string[] | null,
-  ): Member => ({
-    zaloName,
-    weeks,
-    sessions,
-    thisWeek: slots && { count: slots.length, slots },
-    lastWeekLabel: slots ? weekLabel : '2/11 - 8/11',
-    firstBookedAt: '2026-09-01T10:00:00.000Z',
-    lastBookedAt: slots ? '2026-11-09T12:00:00.000Z' : '2026-11-02T12:00:00.000Z',
-    attended,
-    absent,
-  })
+    totals: { weeks: number; sessions: number; attended: number; absent: number },
+    byWeek: Record<string, DemoWeek>,
+  ): Member & { marks: Record<string, boolean> } => {
+    const booked = byWeek[week]
+    const latest = byWeek[currentWeek] ? currentWeek : lastWeek
+    return {
+      zaloName,
+      ...totals,
+      week: booked ? { count: booked.slots.length, slots: booked.slots } : null,
+      marks: { ...booked?.marks },
+      lastWeekLabel: latest,
+      firstBookedAt: '2026-09-01T10:00:00.000Z',
+      lastBookedAt:
+        latest === currentWeek ? '2026-11-09T12:00:00.000Z' : '2026-11-02T12:00:00.000Z',
+    }
+  }
   return [
-    member('Lan Phạm', 10, 24, 20, 2, ['Thứ 2 18h - 20h', 'Thứ 5 18h - 20h']),
-    member('Tuấn Hoàng', 6, 12, 9, 3, ['Thứ 4 20h - 22h']),
-    member('Hà Vũ', 3, 6, 2, 3, null),
-    member('Quang Đỗ', 1, 2, 0, 0, ['Thứ 7 14h - 16h', 'Chủ nhật 10h - 12h']),
+    member(
+      'Lan Phạm',
+      { weeks: 10, sessions: 24, attended: 20, absent: 2 },
+      {
+        [currentWeek]: { slots: ['Thứ 2 18h - 20h', 'Thứ 5 18h - 20h'] },
+        [lastWeek]: {
+          slots: ['Thứ 2 18h - 20h', 'Thứ 5 18h - 20h'],
+          marks: { 'Thứ 2 18h - 20h': true, 'Thứ 5 18h - 20h': true },
+        },
+        [twoWeeksAgo]: { slots: ['Thứ 3 18h - 20h'], marks: { 'Thứ 3 18h - 20h': true } },
+      },
+    ),
+    member(
+      'Tuấn Hoàng',
+      { weeks: 6, sessions: 12, attended: 9, absent: 3 },
+      {
+        [currentWeek]: { slots: ['Thứ 4 20h - 22h'] },
+        [lastWeek]: { slots: ['Thứ 4 20h - 22h'], marks: { 'Thứ 4 20h - 22h': false } },
+      },
+    ),
+    member(
+      'Hà Vũ',
+      { weeks: 3, sessions: 6, attended: 2, absent: 3 },
+      {
+        [lastWeek]: {
+          slots: ['Thứ 6 18h - 20h', 'Chủ nhật 10h - 12h'],
+          marks: { 'Thứ 6 18h - 20h': true },
+        },
+        [twoWeeksAgo]: { slots: ['Thứ 6 18h - 20h'], marks: { 'Thứ 6 18h - 20h': false } },
+      },
+    ),
+    member(
+      'Quang Đỗ',
+      { weeks: 1, sessions: 2, attended: 0, absent: 0 },
+      { [currentWeek]: { slots: ['Thứ 7 14h - 16h', 'Chủ nhật 10h - 12h'] } },
+    ),
   ]
 }
 
@@ -151,23 +193,47 @@ export function createMockApi(latencyMs = 600): BookingApi {
       return clone(config)
     },
 
-    async listMembers(): Promise<MemberList> {
+    async listMembers(week?: string): Promise<MemberList> {
       await delay(latencyMs)
+      const weekLabel = week ?? config.weekLabel
+      const known = [config.weekLabel, ...DEMO_PAST_WEEKS.map((w) => w.weekLabel)]
+      if (!known.includes(weekLabel)) {
+        throw fail(404, 'WEEK_NOT_FOUND', 'Không tìm thấy tuần học.')
+      }
       const now = new Date().toISOString()
+      // Bookings made in this browser belong to the current week.
       const booked: Member[] = [...bookings.values()].map((b) => ({
         zaloName: b.zaloName,
         weeks: 1,
         sessions: b.count,
-        thisWeek: { count: b.count, slots: [...b.slots] },
+        week: weekLabel === config.weekLabel ? { count: b.count, slots: [...b.slots] } : null,
         lastWeekLabel: b.weekLabel,
         firstBookedAt: now,
         lastBookedAt: now,
         attended: 0,
         absent: 0,
       }))
+      const demo = createDemoMembers(config.weekLabel, weekLabel)
+      const marks = demo.flatMap((m) => Object.values(m.marks))
+      const bookedIn = (label: string) =>
+        createDemoMembers(config.weekLabel, label).filter((m) => m.week).length +
+        (label === config.weekLabel ? booked.length : 0)
       return {
-        weekLabel: config.weekLabel,
-        members: [...booked, ...createDemoMembers(config.weekLabel)],
+        weekLabel,
+        weeks: [
+          {
+            weekLabel: config.weekLabel,
+            startDate: config.startDate,
+            status: config.status,
+            current: true,
+          },
+          ...DEMO_PAST_WEEKS.map((w) => ({ ...w, status: 'closed' as const, current: false })),
+        ].map((w) => ({ ...w, bookings: bookedIn(w.weekLabel) })),
+        attendance: {
+          present: marks.filter(Boolean).length,
+          absent: marks.filter((m) => !m).length,
+        },
+        members: [...booked, ...demo.map(({ marks: _marks, ...member }) => member)],
       }
     },
 

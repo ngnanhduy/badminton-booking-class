@@ -93,11 +93,35 @@ export function fromLocalInput(value: string): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString()
 }
 
+/** "10/11": day/month, as written in week labels. */
+export const dayMonth = (date: Date) => `${date.getDate()}/${date.getMonth() + 1}`
+
 /** Calendar date ("10/11") for a weekday index (0 = Monday) in the given week, or "". */
 export function slotDate(weekLabel: string, dayIndex: number, today = new Date()): string {
-  if (dayIndex < 0 || dayIndex > 6) return ''
-  const start = weekStartDate(weekLabel, today)
-  if (!start) return ''
-  const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + dayIndex)
-  return `${date.getDate()}/${date.getMonth() + 1}`
+  const date = weekDayDate({ startDate: null, weekLabel }, dayIndex, today)
+  return date ? dayMonth(date) : ''
+}
+
+/**
+ * The date of a weekday (0 = Monday) in a week: from its saved first day, else from the date
+ * in its label. Null for unknown days or unreadable weeks.
+ */
+export function weekDayDate(
+  week: { startDate: string | null; weekLabel: string },
+  dayIndex: number,
+  today = new Date(),
+): Date | null {
+  if (dayIndex < 0 || dayIndex > 6) return null
+  const start = fromDateInput(startDateOf(week, today))
+  if (!start) return null
+  return new Date(start.getFullYear(), start.getMonth(), start.getDate() + dayIndex)
+}
+
+export type DayTiming = 'past' | 'today' | 'upcoming'
+
+/** Whether a date is before, on or after `today` (calendar days, local time). */
+export function dayTiming(date: Date, today = new Date()): DayTiming {
+  const day = toDateInput(date)
+  const now = toDateInput(today)
+  return day < now ? 'past' : day === now ? 'today' : 'upcoming'
 }

@@ -226,7 +226,9 @@ async function onSubmit() {
       </div>
 
       <template v-else>
+        <!-- With a single session there is nothing to switch between. -->
         <SessionTabs
+          v-if="booking.form.count > 1"
           v-model="booking.activeSession"
           :slots="booking.form.slots"
           :count="booking.form.count"
@@ -234,6 +236,7 @@ async function onSubmit() {
         />
 
         <i18n-t
+          v-if="booking.form.count > 1"
           keypath="form.pickingFor"
           tag="p"
           class="mt-5 mb-3 text-sm text-zinc-600 dark:text-zinc-400"
@@ -256,7 +259,9 @@ async function onSubmit() {
           >
             <SlotPicker
               :key="booking.activeSession"
-              :labelled-by="`session-tab-${booking.activeSession}`"
+              :labelled-by="
+                booking.form.count > 1 ? `session-tab-${booking.activeSession}` : undefined
+              "
               :days="activeDays"
               :selected="booking.form.slots[booking.activeSession] ?? ''"
               :capacity="schedule.capacity"
@@ -278,17 +283,17 @@ async function onSubmit() {
           :aria-label="t('common.legend')"
         >
           <li class="flex items-center gap-1.5">
-            <span class="h-1.5 w-4 rounded-full bg-brand-500" aria-hidden="true" />{{
+            <span class="h-1 w-4 rounded-full bg-brand-500" aria-hidden="true" />{{
               t('common.available')
             }}
           </li>
           <li class="flex items-center gap-1.5">
-            <span class="h-1.5 w-4 rounded-full bg-amber-500" aria-hidden="true" />{{
+            <span class="h-1 w-4 rounded-full bg-amber-500" aria-hidden="true" />{{
               t('common.filling')
             }}
           </li>
           <li class="flex items-center gap-1.5">
-            <span class="h-1.5 w-4 rounded-full bg-rose-500" aria-hidden="true" />{{
+            <span class="h-1 w-4 rounded-full bg-rose-500" aria-hidden="true" />{{
               t('common.full')
             }}
           </li>

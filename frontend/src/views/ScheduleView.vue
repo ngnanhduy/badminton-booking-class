@@ -10,16 +10,12 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { formatTime, slotShort } from '@/i18n/format'
 import { useScheduleStore } from '@/stores/schedule'
 import type { Slot } from '@/types/booking'
-import { limitedSessions } from '@/utils/slots'
 
 const { t } = useI18n()
 const schedule = useScheduleStore()
 
 // Show cached data instantly, but always refresh counts when opening this page.
 onMounted(() => schedule.load({ force: true }))
-
-/** Slots offered for only some sessions → those sessions (shown as "B2", "B2,3" in the grid). */
-const limited = computed(() => limitedSessions(schedule.config))
 
 const busiest = computed(() => {
   let best: { slot: Slot; count: number } | null = null
@@ -180,12 +176,12 @@ const updatedAt = computed(() => (schedule.lastUpdated ? formatTime(schedule.las
             :counts="schedule.config.counts"
             :capacity="schedule.capacity"
             :occupancy-of="schedule.occupancyOf"
-            :limited="limited"
+            :week="schedule.config"
           />
         </div>
 
         <div
-          class="flex flex-col gap-3 border-t border-zinc-950/5 px-5 py-4 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between dark:border-white/[0.07] dark:text-zinc-400"
+          class="border-t border-zinc-950/5 px-5 py-4 text-xs text-zinc-500 dark:border-white/[0.07] dark:text-zinc-400"
         >
           <ul class="flex flex-wrap gap-x-4 gap-y-1.5" :aria-label="t('common.legend')">
             <li class="flex items-center gap-1.5">
@@ -205,7 +201,6 @@ const updatedAt = computed(() => (schedule.lastUpdated ? formatTime(schedule.las
               {{ t('schedule.emptyLegend') }}
             </li>
           </ul>
-          <p v-if="limited.size">{{ t('schedule.limitedLegend') }}</p>
         </div>
       </BaseCard>
     </template>

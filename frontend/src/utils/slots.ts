@@ -105,19 +105,3 @@ export function sessionSlots(
   // Older servers have one list for sessions 2 and 3.
   return [config.slots1, config.slots2, config.slots3 ?? config.slots2]
 }
-
-/**
- * Sessions (1-based) each slot is offered for, for slots not offered for all three:
- * "Thứ 3 14h - 16h" → [2, 3].
- */
-export function limitedSessions(
-  config: Pick<ScheduleConfig, 'slots1' | 'slots2' | 'slots3'> | null | undefined,
-): Map<string, number[]> {
-  const lists = sessionSlots(config).map((list) => new Set(list))
-  const limited = new Map<string, number[]>()
-  for (const slot of new Set(lists.flatMap((list) => [...list]))) {
-    const sessions = lists.flatMap((list, i) => (list.has(slot) ? [i + 1] : []))
-    if (sessions.length < lists.length) limited.set(slot, sessions)
-  }
-  return limited
-}

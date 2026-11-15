@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { ClipboardCheck } from '@lucide/vue'
 
 import MembersDashboard from '@/components/members/MembersDashboard.vue'
@@ -10,6 +11,8 @@ const { t } = useI18n()
 // Only used to show the "Take attendance" shortcut; the server enforces the admin role.
 // (The header's user menu loads the session.)
 const auth = useAuthStore()
+/** The week picked on the dashboard (`?week=`), so attendance opens on the same week. */
+const route = useRoute()
 </script>
 
 <template>
@@ -29,7 +32,7 @@ const auth = useAuthStore()
       </div>
       <BaseButton
         v-if="auth.isAdmin"
-        :to="{ name: 'admin', query: { tab: 'diem-danh' } }"
+        :to="{ name: 'admin', query: { tab: 'diem-danh', week: route.query.week } }"
         :icon="ClipboardCheck"
       >
         {{ t('members.takeAttendance') }}

@@ -23,7 +23,7 @@ export function registrationStatus(
 }
 
 /** Newest week first: by start date, then by creation. */
-const newestFirst = [sql`${weeks.startDate} DESC NULLS LAST`, desc(weeks.createdAt)]
+export const newestFirst = [sql`${weeks.startDate} DESC NULLS LAST`, desc(weeks.createdAt)]
 
 /**
  * The week the public pages show: the one open for registration, or else the most recent

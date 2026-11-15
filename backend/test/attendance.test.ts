@@ -25,6 +25,11 @@ const adminGet = (url: string) => ctx.app.inject({ method: 'GET', url: `/api/v1/
 const mark = (marks: unknown[]) =>
   ctx.app.inject({ method: 'PUT', url: '/api/v1/admin/attendance', headers: auth, payload: { marks } })
 
+async function weekId(label: string) {
+  const list = (await adminGet('/weeks')).json().weeks as { id: string; weekLabel: string }[]
+  return list.find((w) => w.weekLabel === label)!.id
+}
+
 async function bookingIds() {
   const list = (await adminGet('/bookings')).json().bookings as { id: string; zaloName: string }[]
   return Object.fromEntries(list.map((b) => [b.zaloName, b.id]))
@@ -146,13 +151,13 @@ describe('members dashboard', () => {
     expect(minh).toMatchObject({
       weeks: 2,
       sessions: 3,
-      thisWeek: { count: 1, slots: ['Thứ 2 18h - 20h'] },
+      week: { count: 1, slots: ['Thứ 2 18h - 20h'] },
       lastWeekLabel: 'Tuần sau',
       attended: 1,
       absent: 1,
     })
     const hoa = body.members.find((m: { zaloName: string }) => m.zaloName === 'Hoa')
-    expect(hoa).toMatchObject({ weeks: 1, sessions: 1, thisWeek: null, attended: 0, absent: 0 })
+    expect(hoa).toMatchObject({ weeks: 1, sessions: 1, week: null, attended: 0, absent: 0 })
 
     const raw = res.body
     expect(raw).not.toContain('0912345678')
@@ -167,10 +172,74 @@ describe('members dashboard', () => {
       'lastBookedAt',
       'lastWeekLabel',
       'sessions',
-      'thisWeek',
+      'week',
       'weeks',
       'zaloName',
     ])
+  })
+
+  it('shows any week on request, with the week list and the attendance of that week', async () => {
+    const currentLabel = (await ctx.app.inject({ method: 'GET', url: '/api/v1/members' })).json()
+      .weekLabel as string
+    const setOpen = (id: string, open: boolean) =>
+      ctx.app.inject({ method: 'PUT', url: `/api/v1/admin/weeks/${id}`, headers: auth, payload: { open } })
+
+    // An older week: open it briefly to take bookings and attendance, then reopen the current one.
+    const created = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/weeks',
+      headers: auth,
+      payload: { weekLabel: 'Tuần cũ', startDate: '2020-01-06' },
+    })
+    expect(created.statusCode).toBe(201)
+    const oldId = created.json().week.id as string
+    const currentId = await weekId(currentLabel)
+    await setOpen(currentId, false)
+    expect((await setOpen(oldId, true)).statusCode).toBe(200)
+
+    await book({ count: 2, slots: ['Thứ 2 18h - 20h', 'Thứ 4 18h - 20h'] })
+    await book({ zaloName: 'Hoa', contact: 'hoa@example.com' })
+    const ids = await bookingIds()
+    await mark([
+      { bookingId: ids['Minh Anh'], slot: 'Thứ 2 18h - 20h', present: true },
+      { bookingId: ids['Minh Anh'], slot: 'Thứ 4 18h - 20h', present: false },
+    ])
+    await setOpen(oldId, false)
+    expect((await setOpen(currentId, true)).statusCode).toBe(200)
+    const first = 'Tuần cũ'
+
+    const res = await ctx.app.inject({ method: 'GET', url: `/api/v1/members?week=${encodeURIComponent(first)}` })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.weekLabel).toBe(first)
+    const minh = body.members.find((m: { zaloName: string }) => m.zaloName === 'Minh Anh')
+    expect(minh.week).toEqual({ count: 2, slots: ['Thứ 2 18h - 20h', 'Thứ 4 18h - 20h'] })
+    const hoa = body.members.find((m: { zaloName: string }) => m.zaloName === 'Hoa')
+    expect(hoa.week).toEqual({ count: 1, slots: ['Thứ 2 18h - 20h'] })
+    // Class totals only: which session someone missed is not public.
+    expect(body.attendance).toEqual({ present: 1, absent: 1 })
+    expect(res.body).not.toContain('"present":true')
+
+    // Newest week first; the current one is flagged; counts only, no names.
+    const weeks = body.weeks as { weekLabel: string; current: boolean; status: string; bookings: number }[]
+    expect(weeks.find((w) => w.current)).toMatchObject({ weekLabel: currentLabel, status: 'open', bookings: 0 })
+    expect(weeks.find((w) => w.weekLabel === first)).toMatchObject({ current: false, status: 'closed', bookings: 2 })
+    expect(weeks.filter((w) => w.current)).toHaveLength(1)
+    expect(Object.keys(weeks[0]!).sort()).toEqual(['bookings', 'current', 'startDate', 'status', 'weekLabel'])
+
+    // Without ?week= it is the current week, where nobody booked.
+    const now = (await ctx.app.inject({ method: 'GET', url: '/api/v1/members' })).json()
+    expect(now.weekLabel).toBe(currentLabel)
+    expect(now.members.every((m: { week: unknown }) => m.week === null)).toBe(true)
+    expect(now.attendance).toEqual({ present: 0, absent: 0 })
+  })
+
+  it('rejects unknown or malformed weeks', async () => {
+    const missing = await ctx.app.inject({ method: 'GET', url: '/api/v1/members?week=Kh%C3%B4ng%20c%C3%B3' })
+    expect(missing.statusCode).toBe(404)
+    expect(missing.json().error.code).toBe('WEEK_NOT_FOUND')
+    const tooLong = await ctx.app.inject({ method: 'GET', url: `/api/v1/members?week=${'x'.repeat(51)}` })
+    expect(tooLong.statusCode).toBe(400)
   })
 
   it('is public (no sign-in needed), but marking attendance is admin-only', async () => {

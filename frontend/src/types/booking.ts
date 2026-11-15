@@ -146,17 +146,33 @@ export interface Member {
   weeks: number
   /** Sessions booked in total. */
   sessions: number
-  /** This week's booking, or null. */
-  thisWeek: { count: number; slots: string[] } | null
+  /** Their booking in the chosen week, or null. */
+  week: { count: number; slots: string[] } | null
   lastWeekLabel: string
   firstBookedAt: string
   lastBookedAt: string
-  /** Sessions an admin marked present / absent. */
+  /** Sessions an admin marked present / absent, over all weeks. */
   attended: number
   absent: number
 }
 
-export interface MemberList {
+/** A week that can be picked on the members dashboard. */
+export interface MemberWeek {
   weekLabel: string
+  startDate: string | null
+  status: RegistrationStatus
+  /** The week the public pages show (the dashboard's default). */
+  current: boolean
+  /** Number of students booked that week. */
+  bookings: number
+}
+
+export interface MemberList {
+  /** The week `members[].week` refers to. */
+  weekLabel: string
+  /** Every week, newest first. */
+  weeks: MemberWeek[]
+  /** Sessions of the chosen week marked present / absent, for the whole class. */
+  attendance: { present: number; absent: number }
   members: Member[]
 }

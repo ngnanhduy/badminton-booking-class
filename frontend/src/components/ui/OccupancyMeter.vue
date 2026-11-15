@@ -25,7 +25,7 @@ const barClass = computed(() => {
 
 <template>
   <div
-    class="h-1.5 w-full overflow-hidden rounded-full"
+    class="h-1 w-full overflow-hidden rounded-full"
     :class="inverted ? 'bg-white/30' : 'bg-zinc-200/80 dark:bg-white/10'"
     role="meter"
     :aria-valuenow="count"

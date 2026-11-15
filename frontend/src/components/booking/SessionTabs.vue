@@ -63,7 +63,7 @@ function onKeydown(event: KeyboardEvent) {
       class="relative min-w-0 rounded-xl px-3 py-2.5 text-left transition duration-150"
       :class="[
         active === tab.index
-          ? 'bg-zinc-900 text-white shadow-md shadow-zinc-900/15 dark:bg-white dark:text-zinc-900'
+          ? 'bg-brand-50 text-zinc-900 ring-2 ring-brand-500 dark:bg-brand-400/10 dark:text-white dark:ring-brand-400'
           : 'bg-zinc-100/80 text-zinc-700 hover:bg-zinc-200/70 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10',
         tab.invalid && active !== tab.index && 'ring-2 ring-rose-400 dark:ring-rose-500/60',
       ]"

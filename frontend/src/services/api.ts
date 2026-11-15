@@ -22,8 +22,11 @@ export interface BookingApi {
   lookupBooking(contact: string): Promise<ExistingBooking>
   /** Deletes this week's booking (and its personal data) for a phone number or email. */
   deleteBooking(contact: string): Promise<DeleteResponse>
-  /** Public members dashboard: names, slots and attendance totals (no contact details). */
-  listMembers(): Promise<MemberList>
+  /**
+   * Public members dashboard: names, slots and attendance (no contact details), with each
+   * member's booking in `week` (default: the current week).
+   */
+  listMembers(week?: string): Promise<MemberList>
   /** Marks the student present for the session they booked today (during class time). */
   checkIn(contact: string): Promise<CheckInResult>
 }
@@ -87,7 +90,8 @@ function createHttpApi(): BookingApi {
     deleteBooking: (contact) =>
       request<DeleteResponse>('/bookings/delete', { method: 'POST', body: { contact } }),
 
-    listMembers: () => request<MemberList>('/members'),
+    listMembers: (week) =>
+      request<MemberList>(week ? `/members?week=${encodeURIComponent(week)}` : '/members'),
 
     checkIn: (contact) => request<CheckInResult>('/checkin', { method: 'POST', body: { contact } }),
   }

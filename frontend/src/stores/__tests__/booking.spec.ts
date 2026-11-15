@@ -19,7 +19,7 @@ vi.mock('@/services/api', async (importOriginal) => {
       submitBooking: (payload) => backend.current!.submitBooking(payload),
       lookupBooking: (contact) => backend.current!.lookupBooking(contact),
       deleteBooking: (contact) => backend.current!.deleteBooking(contact),
-      listMembers: () => backend.current!.listMembers(),
+      listMembers: (week) => backend.current!.listMembers(week),
       checkIn: (contact) => backend.current!.checkIn(contact),
     } satisfies BookingApi,
   }

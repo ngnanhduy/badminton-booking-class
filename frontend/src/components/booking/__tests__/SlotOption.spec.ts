@@ -45,11 +45,22 @@ describe('SlotOption', () => {
     expect(wrapper.text()).toContain('Trùng ngày với Buổi 1')
   })
 
+  it('shows a short status in the chip and the full one to screen readers', () => {
+    const taken = render({ takenBy: 2 })
+    expect(taken.get('[aria-hidden="true"]').text()).toBe('Buổi 2')
+    expect(taken.get('.sr-only').text()).toBe('Đã chọn cho Buổi 2')
+
+    const sameDay = render({ sameDayAs: 1 })
+    expect(sameDay.get('[aria-hidden="true"]').text()).toBe('Trùng ngày')
+    expect(sameDay.get('.sr-only').text()).toBe('Trùng ngày với Buổi 1')
+  })
+
   it('is translated to English, with plurals and 24-hour times', async () => {
     setLocale('en')
     const wrapper = render({ count: 7 })
     expect(wrapper.text()).toContain('18:00 – 20:00')
-    expect(wrapper.text()).toContain('Evening · 1 place left')
+    expect(wrapper.text()).toContain('1 place left')
+    expect(wrapper.text()).not.toContain('Evening')
     expect(render({ count: 3 }).text()).toContain('5 places left')
     expect(render({ takenBy: 2 }).text()).toContain('Chosen for session 2')
   })
