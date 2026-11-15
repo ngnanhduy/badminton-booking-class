@@ -25,11 +25,28 @@ export const toDateInput = (d: Date) =>
   `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 
 /** Local Date from "YYYY-MM-DD", or null. */
-function fromDateInput(value: string): Date | null {
+export function fromDateInput(value: string): Date | null {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (!match) return null
   const d = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
   return Number.isNaN(d.getTime()) ? null : d
+}
+
+/** Monday of the week a "YYYY-MM-DD" date falls in (weeks run Monday → Sunday). "" if invalid. */
+export function mondayOf(date: string): string {
+  const d = fromDateInput(date)
+  if (!d) return ''
+  return toDateInput(new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7)))
+}
+
+/** A week's first day for the date picker: the saved date, else the one in its label. */
+export function startDateOf(
+  week: { startDate: string | null; weekLabel: string },
+  today = new Date(),
+): string {
+  if (week.startDate) return week.startDate
+  const start = weekStartDate(week.weekLabel, today)
+  return start ? toDateInput(start) : ''
 }
 
 /** Label for the week starting on a date: "2026-11-16" → "16/11 - 22/11". "" if invalid. */

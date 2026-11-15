@@ -278,3 +278,72 @@ describe('editing time slots', () => {
     expect((await adminGet('/bookings')).bookings[0].slots).toContain(WED)
   })
 })
+
+describe('a slot list per session', () => {
+  let app: Awaited<ReturnType<typeof createTestApp>>
+  let weekId: string
+  const MON = 'Thứ 2 18h - 20h'
+  const TUE = 'Thứ 3 18h - 20h'
+  const THU = 'Thứ 5 18h - 20h'
+
+  const put = (payload: Record<string, unknown>) =>
+    app.app.inject({ method: 'PUT', url: `/api/v1/admin/weeks/${weekId}`, headers, payload })
+  const bookThree = (slots: string[]) =>
+    app.app.inject({ method: 'POST', url: '/api/v1/bookings', payload: validBooking({ count: 3, slots }) })
+
+  beforeAll(async () => {
+    app = await createTestApp()
+    weekId = (await app.app.inject({ method: 'GET', url: '/api/v1/admin/weeks', headers })).json().weeks[0].id
+  })
+  afterAll(() => app.close())
+
+  it('checks session 2 and session 3 against their own lists', async () => {
+    const res = await put({ slots1: [MON], slots2: [TUE], slots3: [THU] })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().config).toMatchObject({ slots1: [MON], slots2: [TUE], slots3: [THU] })
+
+    // Swapped: Thứ 5 is only offered for session 3, Thứ 3 only for session 2.
+    const swapped = await bookThree([MON, THU, TUE])
+    expect(swapped.statusCode).toBe(400)
+    expect(swapped.json().error).toMatchObject({ code: 'SLOT_INVALID', params: { slot: THU } })
+    expect((await bookThree([MON, TUE, THU])).statusCode).toBe(201)
+  })
+
+  it('uses the session 2 list for session 3 when a client sends only slots2', async () => {
+    const res = await put({ slots2: [TUE, THU] })
+    expect(res.json().week).toMatchObject({ slots2: [TUE, THU], slots3: [TUE, THU] })
+    const created = await app.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/weeks',
+      headers,
+      payload: { weekLabel: 'Tuần mới', slots2: [MON] },
+    })
+    expect(created.json().week).toMatchObject({ slots2: [MON], slots3: [MON] })
+  })
+
+  it('migrates existing weeks with the session 2 list for session 3', async () => {
+    const source = fileURLToPath(new URL('../drizzle', import.meta.url))
+    const partial = mkdtempSync(join(tmpdir(), 'migrations-'))
+    cpSync(source, partial, { recursive: true })
+    const journalPath = join(partial, 'meta', '_journal.json')
+    const journal = JSON.parse(readFileSync(journalPath, 'utf8'))
+    journal.entries = journal.entries.filter((e: { tag: string }) => e.tag < '0009')
+    writeFileSync(journalPath, JSON.stringify(journal))
+
+    const client = new PGlite('memory://')
+    const db = drizzle({ client })
+    try {
+      await migrate(db, { migrationsFolder: partial })
+      await client.exec(`
+        INSERT INTO weeks (id, label, rules, slots1, slots2)
+        VALUES ('00000000-0000-4000-8000-000000000009', '9/11 - 15/11', '[]', '["${MON}"]', '["${TUE}"]');
+      `)
+      await migrate(db, { migrationsFolder: source })
+      const { rows } = await client.query('SELECT slots2, slots3 FROM weeks')
+      expect(rows).toEqual([{ slots2: [TUE], slots3: [TUE] }])
+    } finally {
+      await client.close()
+      rmSync(partial, { recursive: true, force: true })
+    }
+  })
+})

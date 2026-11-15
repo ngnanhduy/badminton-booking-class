@@ -64,6 +64,13 @@
       "when": 1794678660851,
       "tag": "0008_drop_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794757682571,
+      "tag": "0009_slots3",
+      "breakpoints": true
     }
   ]
 }

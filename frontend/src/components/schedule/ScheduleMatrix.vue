@@ -13,8 +13,8 @@ const props = defineProps<{
   counts: Record<string, number>
   capacity: number | null
   occupancyOf: (slot: string) => Occupancy
-  /** Slots that can only be chosen for sessions 2 and 3. */
-  secondaryOnly: Set<string>
+  /** Slots offered for only some sessions → those sessions (1-based). */
+  limited: Map<string, number[]>
 }>()
 
 const days = computed(() => {
@@ -122,11 +122,15 @@ function statusLabel(slot: Slot) {
                 {{ statusLabel(cell.slot) }}
               </span>
               <span
-                v-if="secondaryOnly.has(cell.slot.value)"
-                class="absolute top-1.5 right-2 text-xs font-bold opacity-60"
-                :title="t('matrix.secondaryOnly')"
-                :aria-label="t('matrix.secondaryOnly')"
-                >*</span
+                v-if="limited.has(cell.slot.value)"
+                class="absolute top-1.5 right-2 text-[0.625rem] font-bold tracking-tight opacity-70"
+                :title="t('matrix.onlyFor', { sessions: limited.get(cell.slot.value)!.join(', ') })"
+                :aria-label="
+                  t('matrix.onlyFor', { sessions: limited.get(cell.slot.value)!.join(', ') })
+                "
+                >{{
+                  t('matrix.onlyShort', { sessions: limited.get(cell.slot.value)!.join(',') })
+                }}</span
               >
             </div>
             <div

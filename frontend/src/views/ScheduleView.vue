@@ -10,6 +10,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { formatTime, slotShort } from '@/i18n/format'
 import { useScheduleStore } from '@/stores/schedule'
 import type { Slot } from '@/types/booking'
+import { limitedSessions } from '@/utils/slots'
 
 const { t } = useI18n()
 const schedule = useScheduleStore()
@@ -17,12 +18,8 @@ const schedule = useScheduleStore()
 // Show cached data instantly, but always refresh counts when opening this page.
 onMounted(() => schedule.load({ force: true }))
 
-const secondaryOnly = computed(() => {
-  const config = schedule.config
-  if (!config) return new Set<string>()
-  const session1 = new Set(config.slots1)
-  return new Set(config.slots2.filter((s) => !session1.has(s)))
-})
+/** Slots offered for only some sessions → those sessions (shown as "B2", "B2,3" in the grid). */
+const limited = computed(() => limitedSessions(schedule.config))
 
 const busiest = computed(() => {
   let best: { slot: Slot; count: number } | null = null
@@ -183,7 +180,7 @@ const updatedAt = computed(() => (schedule.lastUpdated ? formatTime(schedule.las
             :counts="schedule.config.counts"
             :capacity="schedule.capacity"
             :occupancy-of="schedule.occupancyOf"
-            :secondary-only="secondaryOnly"
+            :limited="limited"
           />
         </div>
 
@@ -208,7 +205,7 @@ const updatedAt = computed(() => (schedule.lastUpdated ? formatTime(schedule.las
               {{ t('schedule.emptyLegend') }}
             </li>
           </ul>
-          <p v-if="secondaryOnly.size">{{ t('schedule.secondaryOnly') }}</p>
+          <p v-if="limited.size">{{ t('schedule.limitedLegend') }}</p>
         </div>
       </BaseCard>
     </template>

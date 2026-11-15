@@ -2,13 +2,12 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { CalendarCog, CalendarRange, ClipboardCheck, ClipboardList, UsersRound } from '@lucide/vue'
+import { CalendarCog, ClipboardCheck, ClipboardList, UsersRound } from '@lucide/vue'
 
 import AdminAttendance from '@/components/admin/AdminAttendance.vue'
 import AdminBookings from '@/components/admin/AdminBookings.vue'
 import AdminSettings from '@/components/admin/AdminSettings.vue'
 import AdminUsers from '@/components/admin/AdminUsers.vue'
-import AdminWeeks from '@/components/admin/AdminWeeks.vue'
 import { useScheduleStore } from '@/stores/schedule'
 
 const { t } = useI18n()
@@ -20,7 +19,6 @@ onMounted(() => schedule.load({ force: true }))
 
 const TABS = [
   { id: 'dang-ky', labelKey: 'admin.tabBookings', icon: ClipboardList, component: AdminBookings },
-  { id: 'tuan-hoc', labelKey: 'admin.tabWeeks', icon: CalendarRange, component: AdminWeeks },
   {
     id: 'diem-danh',
     labelKey: 'admin.tabAttendance',
@@ -31,7 +29,13 @@ const TABS = [
   { id: 'quan-tri-vien', labelKey: 'admin.tabUsers', icon: UsersRound, component: AdminUsers },
 ] as const
 
-const active = computed(() => TABS.find((tab) => tab.id === route.query.tab) ?? TABS[0])
+/** Old links: the weeks tab is now part of the class settings tab. */
+const RENAMED: Record<string, string> = { 'tuan-hoc': 'cai-dat' }
+
+const active = computed(() => {
+  const id = typeof route.query.tab === 'string' ? route.query.tab : ''
+  return TABS.find((tab) => tab.id === (RENAMED[id] ?? id)) ?? TABS[0]
+})
 
 function select(id: string) {
   router.replace({ query: { ...route.query, tab: id } })

@@ -160,8 +160,8 @@ waits about a minute. A free uptime monitor (for example UptimeRobot) that calls
 
 - **Back up the keys** (`ENCRYPTION_KEY`, `BLIND_INDEX_KEY`). They exist only in your `.env`,
   your password manager and Render's settings.
-- **Each week:** on **Quản trị → Tuần học**, create the next week, close the current one and open
-  the new one. Alternatives are the
+- **Each week:** on **Quản trị → Cài đặt lớp → Mở / đóng tuần**, create the next week (**Tạo tuần
+  mới**), close the current one and open the new one (**Mở đăng ký**). Alternatives are the
   `weeks` table in Supabase's Table Editor, or `POST`/`PUT /api/v1/admin/weeks` with your
   `ADMIN_TOKEN`.
 - **Export decrypted data:** run `npm run export:bookings -w backend` locally, with `DATABASE_URL`

@@ -35,8 +35,10 @@ export interface Week {
   /** First day of the week, "YYYY-MM-DD" (null for older weeks: read from the label). */
   startDate: string | null
   rules: string[]
+  /** Slots offered for session 1, 2 and 3 of a booking. */
   slots1: string[]
   slots2: string[]
+  slots3: string[]
   capacity: number | null
   /** Registration switch. Only one week can be open at a time. */
   open: boolean
@@ -73,6 +75,7 @@ export type WeekInput = Partial<
     | 'rules'
     | 'slots1'
     | 'slots2'
+    | 'slots3'
     | 'capacity'
     | 'open'
     | 'opensAt'

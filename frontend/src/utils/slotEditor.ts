@@ -1,10 +1,23 @@
 import type { SlotRename } from '@/types/admin'
 import { formatHour, parseSlot } from './slots'
 
+/** Whether a slot is offered for session 1, 2 and 3 of a booking (`[i]` = session i + 1). */
+export type SessionFlags = [boolean, boolean, boolean]
+
+/** A week's slot lists, one per session. */
+export interface SlotLists {
+  slots1: readonly string[]
+  slots2: readonly string[]
+  slots3: readonly string[]
+}
+
+const listsOf = (w: SlotLists) => [w.slots1, w.slots2, w.slots3] as const
+const noneOn = (s: readonly boolean[]) => !s.some(Boolean)
+
 /**
- * Editable form of a week's time slots. A week stores two label lists ("Thứ 2 18h - 20h"):
- * `slots1` for session 1 and `slots2` for sessions 2 and 3. The editor shows one list of
- * slots per day instead, each with a toggle for each list.
+ * Editable form of a week's time slots. A week stores one label list ("Thứ 2 18h - 20h") per
+ * session of a booking: `slots1`, `slots2` and `slots3`. The editor shows one list of slots
+ * per day instead, each with a toggle per session.
  */
 export interface SlotDraft {
   /** Stable key for v-for. */
@@ -16,9 +29,8 @@ export interface SlotDraft {
   end: string
   /** The label itself, for free-text slots. */
   text: string
-  /** Offered for session 1 / for sessions 2 and 3. */
-  session1: boolean
-  sessions23: boolean
+  /** Offered for session 1, 2, 3. */
+  sessions: SessionFlags
   /** Label as saved in this week, or null for a slot added (or copied) in the editor. */
   original: string | null
   /** Saved slot marked for removal (kept until saved, so it can be undone). */
@@ -43,16 +55,16 @@ let seq = 0
 const nextKey = () => `slot-${++seq}`
 
 /**
- * Drafts for the slots in `slots1`/`slots2`. `saved` are the labels the week currently has
- * (default: these same lists); only those count as existing slots, so copying another week's
- * slots never "renames" anything.
+ * Drafts for a week's slots. `saved` are the labels the week currently has (default: these
+ * same lists); only those count as existing slots, so copying another week's slots never
+ * "renames" anything.
  */
 export function draftsFromSlots(
-  slots1: readonly string[],
-  slots2: readonly string[],
-  saved: ReadonlySet<string> = new Set([...slots1, ...slots2]),
+  week: SlotLists,
+  saved: ReadonlySet<string> = new Set(listsOf(week).flat()),
 ): SlotDraft[] {
-  return [...new Set([...slots1, ...slots2])].map((label) => {
+  const lists = listsOf(week)
+  return [...new Set(lists.flat())].map((label) => {
     const slot = parseSlot(label)
     const readable = slot.dayIndex <= 6 && slot.start !== null && slot.end !== null
     const values = readable
@@ -62,8 +74,7 @@ export function draftsFromSlots(
     return {
       key: nextKey(),
       ...values,
-      session1: slots1.includes(label),
-      sessions23: slots2.includes(label),
+      sessions: lists.map((list) => list.includes(label)) as SessionFlags,
       original,
       removed: false,
       initial: original ? { ...values } : null,
@@ -81,12 +92,77 @@ export function newDraft(day: number, after?: SlotDraft): SlotDraft {
     start: toTime(start),
     end: toTime(start + 2),
     text: '',
-    session1: after?.session1 ?? true,
-    sessions23: after?.sessions23 ?? true,
+    sessions: after ? [...after.sessions] : [true, true, true],
     original: null,
     removed: false,
     initial: null,
   }
+}
+
+/** One time range to add on several days at once. */
+export interface SlotTemplate {
+  /** 0 = Monday … 6 = Sunday. */
+  days: readonly number[]
+  /** "HH:mm" */
+  start: string
+  end: string
+  sessions: SessionFlags
+}
+
+/** What stops a template from being added (no days chosen yet is not an issue). */
+export function templateIssue(t: SlotTemplate): SlotIssue | null {
+  const start = toHour(t.start)
+  const end = toHour(t.end)
+  if (Number.isNaN(start) || Number.isNaN(end)) return 'timeRequired'
+  if (end <= start) return 'endBeforeStart'
+  if (noneOn(t.sessions)) return 'noSession'
+  return null
+}
+
+/**
+ * Adds the template's time on each of its days. A day that already has a slot at that time
+ * keeps it and only gets the chosen sessions turned on; a slot marked for removal is
+ * restored instead of added twice. Returns how many slots were added and how many existed.
+ */
+export function addSlotToDays(
+  drafts: SlotDraft[],
+  t: SlotTemplate,
+): { added: number; existing: number } {
+  if (templateIssue(t)) return { added: 0, existing: 0 }
+  const start = toHour(t.start)
+  const end = toHour(t.end)
+  let added = 0
+  let existing = 0
+  for (const day of [...new Set(t.days)].sort((a, b) => a - b)) {
+    const same = drafts.filter(
+      (d) => d.day === day && toHour(d.start) === start && toHour(d.end) === end,
+    )
+    const active = same.find((d) => !d.removed)
+    if (active) {
+      active.sessions = active.sessions.map((on, i) => on || t.sessions[i]!) as SessionFlags
+      existing++
+      continue
+    }
+    const removed = same[0]
+    if (removed) {
+      removed.removed = false
+      removed.sessions = [...t.sessions]
+    } else {
+      drafts.push({
+        key: nextKey(),
+        day,
+        start: toTime(start),
+        end: toTime(end),
+        text: '',
+        sessions: [...t.sessions],
+        original: null,
+        removed: false,
+        initial: null,
+      })
+    }
+    added++
+  }
+  return { added, existing }
 }
 
 /** A saved slot whose day and time weren't touched. */
@@ -132,7 +208,7 @@ export function validateDrafts(drafts: readonly SlotDraft[]) {
     } else if (toHour(d.end) <= toHour(d.start)) {
       issues[d.key] = 'endBeforeStart'
     }
-    if (!issues[d.key] && !d.session1 && !d.sessions23) issues[d.key] = 'noSession'
+    if (!issues[d.key] && noneOn(d.sessions)) issues[d.key] = 'noSession'
     if (issues[d.key]) continue
     const id = identity(d)
     const renamedOntoRemoved = !!d.original && labelOf(d) !== d.original && removed.has(id)
@@ -141,10 +217,10 @@ export function validateDrafts(drafts: readonly SlotDraft[]) {
   }
   return {
     issues,
-    missingSession1: !active.some((d) => d.session1),
-    missingSessions23: !active.some((d) => d.sessions23),
+    /** Sessions (1-based) that no slot is offered for. */
+    missingSessions: [1, 2, 3].filter((n) => !active.some((d) => d.sessions[n - 1])),
     get ok() {
-      return !Object.keys(this.issues).length && !this.missingSession1 && !this.missingSessions23
+      return !Object.keys(this.issues).length && !this.missingSessions.length
     },
   }
 }
@@ -153,6 +229,7 @@ export function validateDrafts(drafts: readonly SlotDraft[]) {
 export function slotsFromDrafts(drafts: readonly SlotDraft[]): {
   slots1: string[]
   slots2: string[]
+  slots3: string[]
   renames: SlotRename[]
 } {
   const active = drafts
@@ -166,8 +243,9 @@ export function slotsFromDrafts(drafts: readonly SlotDraft[]): {
       return toHour(a.d.start) - toHour(b.d.start)
     })
   return {
-    slots1: active.filter((a) => a.d.session1).map((a) => a.label),
-    slots2: active.filter((a) => a.d.sessions23).map((a) => a.label),
+    slots1: active.filter((a) => a.d.sessions[0]).map((a) => a.label),
+    slots2: active.filter((a) => a.d.sessions[1]).map((a) => a.label),
+    slots3: active.filter((a) => a.d.sessions[2]).map((a) => a.label),
     renames: active
       .filter((a) => a.d.original && a.label !== a.d.original)
       .map((a) => ({ from: a.d.original!, to: a.label })),

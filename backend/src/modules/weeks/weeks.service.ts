@@ -55,6 +55,7 @@ export interface WeekDto {
   rules: string[]
   slots1: string[]
   slots2: string[]
+  slots3: string[]
   capacity: number | null
   open: boolean
   opensAt: string | null
@@ -71,6 +72,7 @@ export function toWeekDto(w: WeekRow): WeekDto {
     rules: w.rules,
     slots1: w.slots1,
     slots2: w.slots2,
+    slots3: w.slots3,
     capacity: w.capacity,
     open: w.open,
     opensAt: w.opensAt?.toISOString() ?? null,
@@ -147,8 +149,10 @@ export interface WeekInput {
   weekLabel: string
   startDate: string | null
   rules: string[]
+  /** Slots offered for session 1, 2 and 3 of a booking. */
   slots1: string[]
   slots2: string[]
+  slots3: string[]
   capacity: number | null
   open: boolean
   opensAt: Date | null
@@ -293,6 +297,8 @@ export async function createWeek(
           rules: input.rules ?? base.rules,
           slots1: input.slots1 ?? base.slots1,
           slots2: input.slots2 ?? base.slots2,
+          // Clients from before session 3 had its own list send only slots2 (used for both).
+          slots3: input.slots3 ?? input.slots2 ?? base.slots3,
           capacity: input.capacity === undefined ? base.capacity : input.capacity,
           open,
           opensAt,
@@ -338,6 +344,8 @@ export async function updateWeek(
       if (changes.open && !week.open) await ensureNoOtherOpenWeek(tx, id)
 
       const { weekLabel, slotRenames, ...rest } = changes
+      // Clients from before session 3 had its own list send only slots2 (used for both).
+      if (rest.slots2 && !rest.slots3) rest.slots3 = rest.slots2
       const [row] = await tx
         .update(weeks)
         .set({ ...rest, ...(weekLabel !== undefined && { label: weekLabel }), updatedAt: new Date() })
@@ -349,8 +357,8 @@ export async function updateWeek(
             tx,
             row!.label,
             slotRenames,
-            new Set([...week.slots1, ...week.slots2]),
-            new Set([...row!.slots1, ...row!.slots2]),
+            new Set([...week.slots1, ...week.slots2, ...week.slots3]),
+            new Set([...row!.slots1, ...row!.slots2, ...row!.slots3]),
           )
         : 0
       await audit(tx, {

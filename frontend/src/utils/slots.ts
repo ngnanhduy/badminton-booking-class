@@ -1,4 +1,4 @@
-import type { DayGroup, DayPeriod, Slot } from '@/types/booking'
+import type { DayGroup, DayPeriod, ScheduleConfig, Slot } from '@/types/booking'
 
 const DAY_PATTERN = /^(?:thứ\s*([2-7])|(chủ\s*nhật|cn))\s+(.+)$/iu
 const TIME_PATTERN = /(\d{1,2})\s*(?:[h:]\s*(\d{2})?)?\s*[-–—]\s*(\d{1,2})\s*(?:[h:]\s*(\d{2})?)?/iu
@@ -95,4 +95,29 @@ export function groupByDay(labels: readonly string[]): DayGroup[] {
 /** Unique, chronologically sorted slots across several label lists. */
 export function mergeSlots(...lists: readonly (readonly string[])[]): Slot[] {
   return groupByDay(lists.flat()).flatMap((g) => g.slots)
+}
+
+/** Slot labels offered for each session of a booking: [session 1, session 2, session 3]. */
+export function sessionSlots(
+  config: Pick<ScheduleConfig, 'slots1' | 'slots2' | 'slots3'> | null | undefined,
+): [string[], string[], string[]] {
+  if (!config) return [[], [], []]
+  // Older servers have one list for sessions 2 and 3.
+  return [config.slots1, config.slots2, config.slots3 ?? config.slots2]
+}
+
+/**
+ * Sessions (1-based) each slot is offered for, for slots not offered for all three:
+ * "Thứ 3 14h - 16h" → [2, 3].
+ */
+export function limitedSessions(
+  config: Pick<ScheduleConfig, 'slots1' | 'slots2' | 'slots3'> | null | undefined,
+): Map<string, number[]> {
+  const lists = sessionSlots(config).map((list) => new Set(list))
+  const limited = new Map<string, number[]>()
+  for (const slot of new Set(lists.flatMap((list) => [...list]))) {
+    const sessions = lists.flatMap((list, i) => (list.has(slot) ? [i + 1] : []))
+    if (sessions.length < lists.length) limited.set(slot, sessions)
+  }
+  return limited
 }

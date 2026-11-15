@@ -157,7 +157,7 @@ function markAllPresent() {
     <BaseCard :padded="false" solid>
       <div class="flex flex-col gap-3 p-4 sm:p-5">
         <div class="flex items-center justify-between gap-3">
-          <WeekPicker class="w-full sm:w-60" />
+          <WeekPicker class="w-full sm:w-80" />
           <BaseButton
             variant="secondary"
             size="sm"

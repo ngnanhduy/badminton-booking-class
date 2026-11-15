@@ -77,6 +77,16 @@ describe('validateBooking', () => {
     expect(errors.slot0).toContain('không có trong lịch Buổi 1')
   })
 
+  it('checks session 3 against its own list (or the session 2 list from older servers)', () => {
+    const three = draft({
+      count: 3,
+      slots: ['Thứ 2 18h - 20h', 'Thứ 3 14h - 16h', 'Thứ 4 18h - 20h'],
+    })
+    expect(validateBooking(three, config)).toEqual({})
+    const separate = { ...config, slots3: ['Thứ 3 14h - 16h', 'Chủ nhật 10h - 12h'] }
+    expect(validateBooking(three, separate).slot2).toContain('không có trong lịch Buổi 3')
+  })
+
   it('passes a complete booking', () => {
     const errors = validateBooking(
       draft({ count: 2, slots: ['Thứ 4 18h - 20h', 'Thứ 3 14h - 16h', ''] }),

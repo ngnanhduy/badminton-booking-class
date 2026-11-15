@@ -33,8 +33,10 @@ export const weeks = pgTable(
      */
     startDate: date('start_date', { mode: 'string' }),
     rules: jsonb('rules').$type<string[]>().notNull(),
+    /** Slot labels offered for session 1, 2 and 3 of a booking ("Thứ 2 18h - 20h"). */
     slots1: jsonb('slots1').$type<string[]>().notNull(),
     slots2: jsonb('slots2').$type<string[]>().notNull(),
+    slots3: jsonb('slots3').$type<string[]>().notNull(),
     capacity: integer('capacity'),
     /** The admin's registration switch. */
     open: boolean('open').notNull().default(false),

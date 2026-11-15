@@ -96,7 +96,7 @@ export async function submitBooking(deps: AppDeps, input: SubmitBookingInput) {
       if (!slot) {
         throw badRequest('SLOT_REQUIRED', `Vui lòng chọn ca cho Buổi ${i + 1}.`, { session: i + 1 })
       }
-      const allowed = i === 0 ? s.slots1 : s.slots2
+      const allowed = [s.slots1, s.slots2, s.slots3][i]!
       if (!allowed.includes(slot)) {
         throw badRequest('SLOT_INVALID', `Ca "${slot}" không hợp lệ.`, { slot })
       }

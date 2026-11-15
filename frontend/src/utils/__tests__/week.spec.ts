@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 
 import {
   fromLocalInput,
+  mondayOf,
   nextWeekStart,
   slotDate,
+  startDateOf,
   toLocalInput,
   weekLabelFromStart,
   weekStartDate,
@@ -39,6 +41,20 @@ describe('new week suggestions', () => {
     expect(weekLabelFromStart('2026-11-30')).toBe('30/11 - 6/12')
     expect(weekLabelFromStart('2026-12-28')).toBe('28/12 - 3/1')
     expect(weekLabelFromStart('')).toBe('')
+  })
+
+  it('finds the Monday of any day, across months and years', () => {
+    expect(mondayOf('2026-11-18')).toBe('2026-11-16') // Wednesday
+    expect(mondayOf('2026-11-16')).toBe('2026-11-16') // Monday
+    expect(mondayOf('2026-11-22')).toBe('2026-11-16') // Sunday
+    expect(mondayOf('2027-01-01')).toBe('2026-12-28')
+    expect(mondayOf('')).toBe('')
+  })
+
+  it("reads a week's first day from its date or its label", () => {
+    expect(startDateOf({ startDate: '2026-11-16', weekLabel: 'x' }, today)).toBe('2026-11-16')
+    expect(startDateOf({ startDate: null, weekLabel: '9/11 - 15/11' }, today)).toBe('2026-11-09')
+    expect(startDateOf({ startDate: null, weekLabel: 'Tuần lễ' }, today)).toBe('')
   })
 
   it('suggests the week after the latest one', () => {

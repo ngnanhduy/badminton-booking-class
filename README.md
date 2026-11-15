@@ -137,10 +137,12 @@ plain text, so you can edit slots, capacity and opening times directly there.
 
 ### Each week
 
-On **Quản trị → Tuần học**, create the next week (slots, rules and capacity are copied from the
-latest week), close the current week, then open the new one, optionally from a set time. Only one
-week can be open for registration; the home page shows that week. Old weeks stay in the list with
-their settings, bookings and attendance.
+On **Quản trị → Cài đặt lớp → Mở / đóng tuần**, press **Tạo tuần mới** and pick the week in the
+calendar (slots, rules and capacity are copied from the latest week). Then turn **Mở đăng ký** off
+for the current week and on for the new one, optionally from a set time. Only one week can be open
+for registration; the home page shows that week. Old weeks stay in the list on the left, with
+their settings, bookings and attendance. A week's class times, places per slot and rules are on
+the **Giờ học** tab.
 Bookings are grouped by week, so per-slot counts start again from zero.
 
 ## API (`/api/v1`)

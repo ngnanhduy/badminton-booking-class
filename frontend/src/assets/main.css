@@ -108,3 +108,114 @@
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Date/time pickers (@vuepic/vue-datepicker), themed with the app's colors. Dark mode follows
+ * the `.dark` class like everything else, so the picker's own `dark` prop is never used.
+ */
+.dp--theme-light {
+  --dp-font-family: var(--font-sans);
+  --dp-font-size: var(--text-sm);
+  --dp-preview-font-size: var(--text-xs);
+  --dp-time-font-size: 1.75rem;
+  --dp-border-radius: var(--radius-xl);
+  --dp-cell-border-radius: var(--radius-lg);
+  --dp-cell-size: 2.25rem;
+  --dp-menu-padding: 0.5rem;
+  --dp-menu-min-width: 17rem;
+  --dp-input-padding: 0.625rem 2.25rem 0.625rem 0.875rem;
+  --dp-input-icon-padding: 2.375rem;
+  --dp-action-button-height: 2rem;
+  --dp-action-buttons-padding: 0 0.75rem;
+
+  --dp-background-color: var(--color-white);
+  --dp-text-color: var(--color-zinc-900);
+  --dp-hover-color: var(--color-zinc-100);
+  --dp-hover-text-color: var(--color-zinc-900);
+  --dp-hover-icon-color: var(--color-zinc-600);
+  --dp-primary-color: var(--color-brand-600);
+  --dp-primary-disabled-color: var(--color-brand-300);
+  --dp-primary-text-color: var(--color-white);
+  --dp-secondary-color: var(--color-zinc-400);
+  --dp-border-color: --alpha(var(--color-zinc-950) / 10%);
+  --dp-menu-border-color: --alpha(var(--color-zinc-950) / 8%);
+  --dp-border-color-hover: --alpha(var(--color-zinc-950) / 20%);
+  --dp-border-color-focus: var(--color-brand-500);
+  --dp-disabled-color: var(--color-zinc-100);
+  --dp-disabled-color-text: var(--color-zinc-400);
+  --dp-icon-color: var(--color-zinc-400);
+  --dp-danger-color: var(--color-rose-600);
+  --dp-highlight-color: --alpha(var(--color-brand-500) / 12%);
+  --dp-range-between-dates-background-color: var(--color-brand-50);
+  --dp-range-between-dates-text-color: var(--color-brand-900);
+  --dp-range-between-border-color: var(--color-brand-50);
+  --dp-scroll-bar-background: var(--color-zinc-100);
+  --dp-scroll-bar-color: var(--color-zinc-300);
+}
+
+.dark .dp--theme-light {
+  --dp-background-color: var(--color-zinc-900);
+  --dp-text-color: var(--color-zinc-100);
+  --dp-hover-color: --alpha(var(--color-white) / 8%);
+  --dp-hover-text-color: var(--color-white);
+  --dp-hover-icon-color: var(--color-zinc-300);
+  --dp-primary-color: var(--color-brand-500);
+  --dp-primary-disabled-color: var(--color-brand-800);
+  --dp-primary-text-color: var(--color-brand-950);
+  --dp-secondary-color: var(--color-zinc-600);
+  --dp-border-color: --alpha(var(--color-white) / 10%);
+  --dp-menu-border-color: --alpha(var(--color-white) / 10%);
+  --dp-border-color-hover: --alpha(var(--color-white) / 20%);
+  --dp-border-color-focus: var(--color-brand-400);
+  --dp-disabled-color: --alpha(var(--color-white) / 5%);
+  --dp-disabled-color-text: var(--color-zinc-600);
+  --dp-icon-color: var(--color-zinc-500);
+  --dp-danger-color: var(--color-rose-400);
+  --dp-highlight-color: --alpha(var(--color-brand-400) / 15%);
+  --dp-range-between-dates-background-color: --alpha(var(--color-brand-400) / 12%);
+  --dp-range-between-dates-text-color: var(--color-brand-100);
+  --dp-range-between-border-color: transparent;
+  --dp-scroll-bar-background: var(--color-zinc-900);
+  --dp-scroll-bar-color: var(--color-zinc-700);
+}
+
+.dp--theme-light .dp--input {
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.dark .dp--theme-light .dp--input {
+  background-color: --alpha(var(--color-zinc-950) / 40%);
+}
+.dp--theme-light .dp--input-focus {
+  box-shadow: 0 0 0 1px var(--dp-border-color-focus);
+}
+.dp--theme-light .dp--input-invalid {
+  border-color: var(--dp-danger-color);
+  box-shadow: 0 0 0 1px var(--dp-danger-color);
+}
+.dp--theme-light.dp--menu {
+  border-radius: var(--radius-2xl);
+  box-shadow:
+    0 10px 30px -10px --alpha(var(--color-zinc-950) / 25%),
+    0 4px 8px -4px --alpha(var(--color-zinc-950) / 10%);
+}
+.dp--theme-light .dp--action-button {
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+}
+.dp-app-icon {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  margin-inline: 0.75rem;
+  color: var(--dp-icon-color);
+}
+.dp--theme-light .dp--input.dp-input-sm {
+  padding-block: 0.375rem;
+  border-radius: var(--radius-lg);
+}
+.dp--theme-light .dp--input.dp-input-sm.dp--input-not-clearable {
+  padding-inline: 0.75rem !important;
+  font-variant-numeric: tabular-nums;
+}

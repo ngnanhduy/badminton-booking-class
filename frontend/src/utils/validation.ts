@@ -1,7 +1,7 @@
 import { t } from '@/i18n'
 import type { ScheduleConfig, SessionCount } from '@/types/booking'
 import { normalizeContact } from './contact'
-import { parseSlot } from './slots'
+import { parseSlot, sessionSlots } from './slots'
 
 export interface BookingDraft {
   zaloName: string
@@ -31,7 +31,7 @@ export function contactError(contact: string): string | undefined {
  */
 export function validateBooking(
   draft: BookingDraft,
-  config: Pick<ScheduleConfig, 'slots1' | 'slots2'> | null,
+  config: Pick<ScheduleConfig, 'slots1' | 'slots2' | 'slots3'> | null,
 ): BookingErrors {
   const errors: BookingErrors = {}
   const name = draft.zaloName.trim()
@@ -50,13 +50,14 @@ export function validateBooking(
     return errors
   }
 
+  const offered = config ? sessionSlots(config) : null
   const seen = new Set<string>()
   /** Weekday index → 1-based session already on that day. */
   const days = new Map<number, number>()
   for (let i = 0; i < draft.count; i++) {
     const key = `slot${i}` as 'slot0' | 'slot1' | 'slot2'
     const slot = draft.slots[i] ?? ''
-    const allowed = i === 0 ? config?.slots1 : config?.slots2
+    const allowed = offered?.[i]
     const dayIndex = slot ? parseSlot(slot).dayIndex : 7
 
     if (!slot) errors[key] = t('validation.slotRequired', { n: i + 1 })

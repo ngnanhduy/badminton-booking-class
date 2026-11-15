@@ -6,7 +6,7 @@ import { CalendarDays, Gauge, Users } from '@lucide/vue'
 import { formatWhen } from '@/i18n/format'
 import { useScheduleStore } from '@/stores/schedule'
 import type { ScheduleConfig } from '@/types/booking'
-import { mergeSlots } from '@/utils/slots'
+import { mergeSlots, sessionSlots } from '@/utils/slots'
 
 const props = defineProps<{ config: ScheduleConfig | null }>()
 const { t } = useI18n()
@@ -23,7 +23,7 @@ const statusText = computed(() => {
 const stats = computed(() => {
   const c = props.config
   if (!c) return []
-  const slots = mergeSlots(c.slots1, c.slots2).length
+  const slots = mergeSlots(...sessionSlots(c)).length
   return [
     { icon: Users, value: c.totalBookings, label: t('hero.students', c.totalBookings) },
     { icon: CalendarDays, value: slots, label: t('hero.slots', slots) },

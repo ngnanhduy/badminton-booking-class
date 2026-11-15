@@ -3,6 +3,8 @@ import '@fontsource/be-vietnam-pro/500.css'
 import '@fontsource/be-vietnam-pro/600.css'
 import '@fontsource/be-vietnam-pro/700.css'
 import '@fontsource/be-vietnam-pro/800.css'
+// Date picker styles first, so the app's theme (main.css) can override them.
+import '@vuepic/vue-datepicker/dist/main.css'
 import './assets/main.css'
 
 import { createApp } from 'vue'

@@ -5,7 +5,7 @@ import { useIntervalFn, useNow } from '@vueuse/core'
 import { t } from '@/i18n'
 import { api, errorMessage } from '@/services/api'
 import type { RegistrationStatus, ScheduleConfig } from '@/types/booking'
-import { groupByDay, mergeSlots } from '@/utils/slots'
+import { groupByDay, mergeSlots, sessionSlots } from '@/utils/slots'
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -38,17 +38,15 @@ export const useScheduleStore = defineStore('schedule', () => {
   })
   const isOpen = computed(() => registration.value === 'open')
   const capacity = computed(() => config.value?.capacity ?? null)
-  const session1Days = computed(() => groupByDay(config.value?.slots1 ?? []))
-  const session2Days = computed(() => groupByDay(config.value?.slots2 ?? []))
-  const allSlots = computed(() =>
-    mergeSlots(config.value?.slots1 ?? [], config.value?.slots2 ?? []),
-  )
+  /** Slots offered for each session, grouped by day: [session 1, session 2, session 3]. */
+  const sessionDays = computed(() => sessionSlots(config.value).map((list) => groupByDay(list)))
+  const allSlots = computed(() => mergeSlots(...sessionSlots(config.value)))
   const totalSeatsTaken = computed(() =>
     Object.values(config.value?.counts ?? {}).reduce((sum, n) => sum + n, 0),
   )
 
   function daysForSession(index: number) {
-    return index === 0 ? session1Days.value : session2Days.value
+    return sessionDays.value[index] ?? []
   }
 
   function countOf(slot: string): number {
@@ -98,8 +96,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     registration,
     isOpen,
     capacity,
-    session1Days,
-    session2Days,
+    sessionDays,
     allSlots,
     totalSeatsTaken,
     daysForSession,

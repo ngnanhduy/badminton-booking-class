@@ -1,15 +1,25 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, reactive, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Plus, Trash2, Undo2 } from '@lucide/vue'
+import { CalendarPlus, Plus, Trash2, Undo2 } from '@lucide/vue'
 
+import SessionToggles from '@/components/admin/SessionToggles.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import TimeInput from '@/components/ui/TimeInput.vue'
 import { dayName } from '@/i18n/format'
-import { labelOf, newDraft, type SlotDraft, type SlotIssue } from '@/utils/slotEditor'
+import {
+  addSlotToDays,
+  labelOf,
+  newDraft,
+  templateIssue,
+  type SessionFlags,
+  type SlotDraft,
+  type SlotIssue,
+} from '@/utils/slotEditor'
 
 /**
  * A week's time slots, day by day: add, change or remove slots, and choose for each one
- * whether it is offered for session 1, sessions 2–3, or both.
+ * which sessions of a booking (1, 2, 3) it is offered for.
  */
 const drafts = defineModel<SlotDraft[]>({ required: true })
 const props = defineProps<{
@@ -22,6 +32,50 @@ const { t } = useI18n()
 
 const DAYS = [0, 1, 2, 3, 4, 5, 6] as const
 const slotsOf = (day: number | null) => drafts.value.filter((d) => d.day === day)
+
+// --- One time on several days ---------------------------------------------------------
+
+const id = useId()
+const template = reactive({
+  days: [] as number[],
+  start: '18:00',
+  end: '20:00',
+  sessions: [true, true, true] as SessionFlags,
+})
+const templateError = computed(() => {
+  const issue = templateIssue(template)
+  return issue ? t(`slotEditor.issues.${issue}`) : ''
+})
+/** Result of the last "Add", until the template changes. */
+const addedMessage = ref('')
+watch(
+  () => [template.start, template.end, ...template.sessions],
+  () => (addedMessage.value = ''),
+)
+
+function toggleDay(day: number) {
+  addedMessage.value = ''
+  const i = template.days.indexOf(day)
+  if (i === -1) template.days.push(day)
+  else template.days.splice(i, 1)
+}
+const allDays = computed(() => template.days.length === DAYS.length)
+function toggleAllDays() {
+  addedMessage.value = ''
+  template.days = allDays.value ? [] : [...DAYS]
+}
+
+function addToDays() {
+  if (templateError.value || !template.days.length) return
+  const { added, existing } = addSlotToDays(drafts.value, template)
+  template.days = []
+  addedMessage.value = [
+    added && t('slotEditor.quick.added', { n: added }, added),
+    existing && t('slotEditor.quick.existing', { n: existing }, existing),
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
 const others = computed(() => slotsOf(null))
 
 const bookedCount = (d: SlotDraft) => (d.original ? (props.counts[d.original] ?? 0) : 0)
@@ -42,12 +96,108 @@ const pill = (on: boolean) =>
   on
     ? 'bg-brand-600 text-white ring-brand-600 dark:bg-brand-500 dark:text-brand-950 dark:ring-brand-500'
     : 'bg-white text-zinc-500 ring-zinc-950/10 hover:text-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:ring-white/10 dark:hover:text-zinc-100'
-const timeClass =
-  'h-9 w-[6.75rem] rounded-lg bg-white px-2 text-sm tabular-nums ring-1 ring-zinc-950/10 outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 dark:bg-zinc-950/40 dark:ring-white/10 dark:[color-scheme:dark]'
+const groupLabelClass = 'mb-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400'
+/** Fits "18:30" (24-hour times, no icon). */
+const timeClass = 'w-[4.25rem] shrink-0'
 </script>
 
 <template>
   <div class="grid gap-3 md:grid-cols-2">
+    <section
+      class="rounded-xl bg-brand-50/60 p-3 ring-1 ring-brand-600/15 sm:p-4 md:col-span-2 dark:bg-brand-400/[0.06] dark:ring-brand-400/15"
+      :aria-labelledby="`${id}-title`"
+    >
+      <div class="flex items-center gap-2">
+        <CalendarPlus class="size-4 text-brand-700 dark:text-brand-300" aria-hidden="true" />
+        <h3 :id="`${id}-title`" class="text-sm font-semibold">
+          {{ t('slotEditor.quick.title') }}
+        </h3>
+      </div>
+      <p class="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">
+        {{ t('slotEditor.quick.intro') }}
+      </p>
+
+      <div class="mt-3 flex flex-wrap items-end gap-x-5 gap-y-3">
+        <div role="group" :aria-labelledby="`${id}-time`">
+          <p :id="`${id}-time`" :class="groupLabelClass">{{ t('slotEditor.quick.time') }}</p>
+          <div class="flex items-center gap-1.5">
+            <TimeInput
+              v-model="template.start"
+              size="sm"
+              :label="t('slotEditor.start')"
+              :invalid="!!templateError"
+              :class="timeClass"
+            />
+            <span class="text-zinc-400" aria-hidden="true">–</span>
+            <TimeInput
+              v-model="template.end"
+              size="sm"
+              :label="t('slotEditor.end')"
+              :invalid="!!templateError"
+              :class="timeClass"
+            />
+          </div>
+        </div>
+
+        <div role="group" :aria-labelledby="`${id}-days`">
+          <div class="flex items-baseline justify-between gap-3">
+            <p :id="`${id}-days`" :class="groupLabelClass">{{ t('slotEditor.quick.days') }}</p>
+            <button
+              type="button"
+              class="text-xs font-semibold text-brand-700 underline-offset-4 hover:underline dark:text-brand-300"
+              @click="toggleAllDays"
+            >
+              {{ allDays ? t('slotEditor.quick.clearDays') : t('slotEditor.quick.allDays') }}
+            </button>
+          </div>
+          <div class="flex flex-wrap gap-1">
+            <button
+              v-for="day in DAYS"
+              :key="day"
+              type="button"
+              class="h-9 w-9 rounded-lg text-xs font-semibold ring-1 transition sm:w-10"
+              :class="pill(template.days.includes(day))"
+              :aria-pressed="template.days.includes(day)"
+              :title="dayName({ dayIndex: day, day: '' })"
+              @click="toggleDay(day)"
+            >
+              {{ dayName({ dayIndex: day, day: '' }, 'short') }}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <p :class="groupLabelClass">{{ t('slotEditor.quick.sessions') }}</p>
+          <SessionToggles v-model="template.sessions" class="h-9" />
+        </div>
+
+        <BaseButton
+          size="sm"
+          :icon="Plus"
+          :disabled="!!templateError || !template.days.length"
+          @click="addToDays"
+        >
+          {{
+            template.days.length
+              ? t('slotEditor.quick.add', { n: template.days.length }, template.days.length)
+              : t('slotEditor.quick.pickDays')
+          }}
+        </BaseButton>
+      </div>
+
+      <p v-if="templateError" class="mt-2 text-xs font-medium text-rose-600 dark:text-rose-400">
+        {{ templateError }}
+      </p>
+      <p
+        role="status"
+        :class="
+          addedMessage ? 'mt-2 text-xs font-medium text-brand-800 dark:text-brand-200' : 'sr-only'
+        "
+      >
+        {{ addedMessage }}
+      </p>
+    </section>
+
     <section
       v-for="day in DAYS"
       :key="day"
@@ -71,50 +221,27 @@ const timeClass =
           class="rounded-lg bg-white p-2 ring-1 ring-zinc-950/[0.06] dark:bg-zinc-900 dark:ring-white/10"
           :class="d.removed && 'opacity-60'"
         >
-          <div class="flex flex-wrap items-center gap-2">
-            <div class="flex items-center gap-1.5" :class="d.removed && 'line-through'">
-              <input
+          <div class="flex flex-wrap items-center gap-x-1.5 gap-y-2">
+            <div class="flex items-center gap-1" :class="d.removed && 'line-through'">
+              <TimeInput
                 v-model="d.start"
-                type="time"
-                step="900"
+                size="sm"
                 :disabled="d.removed"
-                :aria-label="t('slotEditor.start')"
-                :aria-invalid="!!issues[d.key]"
+                :label="t('slotEditor.start')"
+                :invalid="!!issues[d.key]"
                 :class="timeClass"
               />
               <span class="text-zinc-400" aria-hidden="true">–</span>
-              <input
+              <TimeInput
                 v-model="d.end"
-                type="time"
-                step="900"
+                size="sm"
                 :disabled="d.removed"
-                :aria-label="t('slotEditor.end')"
-                :aria-invalid="!!issues[d.key]"
+                :label="t('slotEditor.end')"
+                :invalid="!!issues[d.key]"
                 :class="timeClass"
               />
             </div>
-            <div class="flex gap-1">
-              <button
-                type="button"
-                class="h-7 rounded-full px-2.5 text-xs font-medium ring-1 transition disabled:opacity-60"
-                :class="pill(d.session1)"
-                :aria-pressed="d.session1"
-                :disabled="d.removed"
-                @click="d.session1 = !d.session1"
-              >
-                {{ t('slotEditor.session1') }}
-              </button>
-              <button
-                type="button"
-                class="h-7 rounded-full px-2.5 text-xs font-medium ring-1 transition disabled:opacity-60"
-                :class="pill(d.sessions23)"
-                :aria-pressed="d.sessions23"
-                :disabled="d.removed"
-                @click="d.sessions23 = !d.sessions23"
-              >
-                {{ t('slotEditor.sessions23') }}
-              </button>
-            </div>
+            <SessionToggles v-model="d.sessions" :disabled="d.removed" class="ml-1" />
             <span
               v-if="bookedCount(d)"
               class="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 tabular-nums dark:bg-sky-400/10 dark:text-sky-200"
@@ -133,11 +260,12 @@ const timeClass =
             </BaseButton>
             <BaseButton
               v-else
-              class="ml-auto"
+              class="ml-auto px-2!"
               variant="danger-ghost"
               size="sm"
               :icon="Trash2"
               :aria-label="t('slotEditor.remove')"
+              :title="t('slotEditor.remove')"
               @click="remove(d)"
             />
           </div>
@@ -185,26 +313,7 @@ const timeClass =
             class="h-9 min-w-0 flex-1 rounded-lg bg-white px-2.5 text-sm ring-1 ring-zinc-950/10 outline-none focus:ring-2 focus:ring-brand-500 dark:bg-zinc-950/40 dark:ring-white/10"
             :class="d.removed && 'line-through'"
           />
-          <button
-            type="button"
-            class="h-7 rounded-full px-2.5 text-xs font-medium ring-1 transition"
-            :class="pill(d.session1)"
-            :aria-pressed="d.session1"
-            :disabled="d.removed"
-            @click="d.session1 = !d.session1"
-          >
-            {{ t('slotEditor.session1') }}
-          </button>
-          <button
-            type="button"
-            class="h-7 rounded-full px-2.5 text-xs font-medium ring-1 transition"
-            :class="pill(d.sessions23)"
-            :aria-pressed="d.sessions23"
-            :disabled="d.removed"
-            @click="d.sessions23 = !d.sessions23"
-          >
-            {{ t('slotEditor.sessions23') }}
-          </button>
+          <SessionToggles v-model="d.sessions" :disabled="d.removed" />
           <BaseButton
             v-if="d.removed"
             variant="ghost"

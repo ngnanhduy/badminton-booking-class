@@ -10,8 +10,10 @@ export interface ScheduleDto {
   /** First day of the week ("YYYY-MM-DD"), or null for older weeks without one. */
   startDate: string | null
   rules: string[]
+  /** Slot labels offered for session 1, 2 and 3 of a booking. */
   slots1: string[]
   slots2: string[]
+  slots3: string[]
   capacity: number | null
   /** The admin's on/off switch. */
   open: boolean
@@ -63,6 +65,7 @@ export async function getSchedule(db: Reader, config: AppConfig): Promise<Schedu
     rules: w.rules,
     slots1: w.slots1,
     slots2: w.slots2,
+    slots3: w.slots3,
     capacity: w.capacity,
     open: w.open,
     opensAt: w.opensAt?.toISOString() ?? null,

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { LockKeyhole, RefreshCw, Search, UsersRound } from '@lucide/vue'
+import { ArrowUpDown, LockKeyhole, RefreshCw, Search, UsersRound } from '@lucide/vue'
 
 import BaseAlert from '@/components/ui/BaseAlert.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
+import BaseSelect from '@/components/ui/BaseSelect.vue'
 import BaseSwitch from '@/components/ui/BaseSwitch.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { formatDate, slotShort } from '@/i18n/format'
@@ -26,6 +27,9 @@ const onlyThisWeek = ref(false)
 type SortKey = 'name' | 'weeks' | 'attendance' | 'recent'
 const sortBy = ref<SortKey>('name')
 const SORTS: SortKey[] = ['name', 'weeks', 'attendance', 'recent']
+const sortOptions = computed(() =>
+  SORTS.map((key) => ({ value: key, label: t(`members.sort.${key}`) })),
+)
 
 async function load() {
   loading.value = true
@@ -117,15 +121,14 @@ const rateClass = (value: number | null) => {
             />
           </div>
           <label class="sr-only" for="members-sort">{{ t('members.sortLabel') }}</label>
-          <select
+          <BaseSelect
             id="members-sort"
             v-model="sortBy"
-            class="h-10 rounded-xl bg-white px-3 text-sm ring-1 ring-zinc-950/10 outline-none focus:ring-2 focus:ring-brand-500 dark:bg-zinc-950/40 dark:ring-white/10"
-          >
-            <option v-for="key in SORTS" :key="key" :value="key">
-              {{ t(`members.sort.${key}`) }}
-            </option>
-          </select>
+            :options="sortOptions"
+            :icon="ArrowUpDown"
+            size="sm"
+            class="sm:w-56"
+          />
         </div>
         <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
           <BaseSwitch v-model="onlyThisWeek" :label="t('members.onlyThisWeek')" />

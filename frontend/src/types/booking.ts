@@ -24,8 +24,10 @@ export interface ScheduleConfig {
   rules: string[]
   /** Slot labels allowed for session 1, e.g. "Thứ 2 18h - 20h". */
   slots1: string[]
-  /** Slot labels allowed for sessions 2 and 3. */
+  /** Slot labels allowed for session 2. */
   slots2: string[]
+  /** Slot labels allowed for session 3 (older servers leave it out: use `slots2`). */
+  slots3?: string[]
   /** Max students per slot, or `null` for unlimited. */
   capacity: number | null
   /** The admin's on/off switch. Use `status` to know whether bookings are accepted now. */

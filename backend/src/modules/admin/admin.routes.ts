@@ -30,6 +30,7 @@ const WeekFields = z
     rules: z.array(z.string().trim().min(1).max(500)).max(20),
     slots1: z.array(SlotLabel).min(1).max(50),
     slots2: z.array(SlotLabel).min(1).max(50),
+    slots3: z.array(SlotLabel).min(1).max(50),
     capacity: z.number().int().positive().nullable(),
     open: z.boolean(),
     opensAt: IsoDateTime,

@@ -122,7 +122,7 @@ function exportCsv() {
     <BaseCard :padded="false" solid>
       <div class="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
         <div class="flex w-full flex-col gap-2 sm:flex-row lg:max-w-xl">
-          <WeekPicker class="sm:w-60 sm:shrink-0" />
+          <WeekPicker class="sm:w-80 sm:shrink-0" />
           <div class="relative w-full">
             <Search
               class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400"
