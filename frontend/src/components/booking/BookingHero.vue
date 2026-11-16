@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CalendarDays, Gauge, Users } from '@lucide/vue'
 
+import { usePages } from '@/composables/usePages'
 import { formatWhen } from '@/i18n/format'
 import { useScheduleStore } from '@/stores/schedule'
 import type { ScheduleConfig } from '@/types/booking'
@@ -11,6 +12,7 @@ import { mergeSlots, sessionSlots } from '@/utils/slots'
 const props = defineProps<{ config: ScheduleConfig | null }>()
 const { t } = useI18n()
 const schedule = useScheduleStore()
+const { canView } = usePages()
 
 const statusText = computed(() => {
   if (schedule.registration === 'open') return t('hero.open')
@@ -77,7 +79,14 @@ const stats = computed(() => {
         {{ t('hero.titleAccent') }}
       </span>
     </h1>
+    <p
+      v-if="!canView('edit')"
+      class="mt-4 max-w-xl text-base leading-relaxed text-pretty text-zinc-600 dark:text-zinc-400"
+    >
+      {{ t('hero.introNoEdit') }}
+    </p>
     <i18n-t
+      v-else
       keypath="hero.intro"
       tag="p"
       class="mt-4 max-w-xl text-base leading-relaxed text-pretty text-zinc-600 dark:text-zinc-400"

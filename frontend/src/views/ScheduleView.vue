@@ -7,12 +7,14 @@ import ScheduleMatrix from '@/components/schedule/ScheduleMatrix.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { usePages } from '@/composables/usePages'
 import { formatTime, slotShort } from '@/i18n/format'
 import { useScheduleStore } from '@/stores/schedule'
 import type { Slot } from '@/types/booking'
 
 const { t } = useI18n()
 const schedule = useScheduleStore()
+const { canView } = usePages()
 
 // Show cached data instantly, but always refresh counts when opening this page.
 onMounted(() => schedule.load({ force: true }))
@@ -95,7 +97,7 @@ const updatedAt = computed(() => (schedule.lastUpdated ? formatTime(schedule.las
         >
           {{ t('common.refresh') }}
         </BaseButton>
-        <BaseButton :to="{ name: 'booking' }" :icon-right="ArrowRight">
+        <BaseButton v-if="canView('booking')" :to="{ name: 'booking' }" :icon-right="ArrowRight">
           {{ t('schedule.book') }}
         </BaseButton>
       </div>

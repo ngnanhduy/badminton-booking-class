@@ -7,7 +7,7 @@ import type {
   WeekResponse,
   WeekSummary,
 } from '@/types/admin'
-import type { MemberList, ScheduleConfig } from '@/types/booking'
+import type { MemberList, PageId, ScheduleConfig } from '@/types/booking'
 import { request } from './api'
 
 /** "?a=1&b=2" from the defined values, or "". */
@@ -57,6 +57,13 @@ export const adminApi = {
   /** Changes a week's settings, including opening/closing its registration. */
   updateWeek: (id: string, changes: WeekInput) =>
     request<WeekResponse>(`/admin/weeks/${id}`, { method: 'PUT', body: changes }),
+
+  /**
+   * Turns public pages on (true) or off (false); pages left out keep their state. Returns the
+   * public schedule with the new `pages`.
+   */
+  updatePages: (changes: Partial<Record<PageId, boolean>>) =>
+    request<ScheduleConfig>('/admin/pages', { method: 'PUT', body: changes }),
 
   listUsers: () => request<{ users: AdminUser[] }>('/admin/users'),
 

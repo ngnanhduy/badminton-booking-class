@@ -5,6 +5,7 @@ import { ArrowRight, Check, Pencil, UserPlus } from '@lucide/vue'
 
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
+import { usePages } from '@/composables/usePages'
 import type { BookingResult } from '@/types/booking'
 import { maskContact } from '@/utils/contact'
 import BookedSessionList from './BookedSessionList.vue'
@@ -12,6 +13,7 @@ import BookedSessionList from './BookedSessionList.vue'
 const props = defineProps<{ result: BookingResult }>()
 const emit = defineEmits<{ edit: []; reset: [] }>()
 const { t } = useI18n()
+const { canView } = usePages()
 
 const maskedContact = computed(() => maskContact(props.result.contact))
 </script>
@@ -76,7 +78,7 @@ const maskedContact = computed(() => maskContact(props.result.contact))
       <BaseButton variant="secondary" :icon="Pencil" @click="emit('edit')">
         {{ t('success.edit') }}
       </BaseButton>
-      <BaseButton :to="{ name: 'schedule' }" :icon-right="ArrowRight">
+      <BaseButton v-if="canView('schedule')" :to="{ name: 'schedule' }" :icon-right="ArrowRight">
         {{ t('common.viewSchedule') }}
       </BaseButton>
     </div>

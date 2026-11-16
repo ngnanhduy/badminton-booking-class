@@ -2,6 +2,9 @@
 import { ArrowLeft, CalendarDays } from '@lucide/vue'
 
 import BaseButton from '@/components/ui/BaseButton.vue'
+import { usePages } from '@/composables/usePages'
+
+const { canView } = usePages()
 </script>
 
 <template>
@@ -14,10 +17,15 @@ import BaseButton from '@/components/ui/BaseButton.vue'
     <h1 class="mt-4 text-2xl font-bold tracking-tight">{{ $t('notFound.title') }}</h1>
     <p class="mt-2 max-w-sm text-zinc-600 dark:text-zinc-400">{{ $t('notFound.body') }}</p>
     <div class="mt-8 flex flex-wrap justify-center gap-2">
-      <BaseButton :to="{ name: 'booking' }" :icon="ArrowLeft">
+      <BaseButton v-if="canView('booking')" :to="{ name: 'booking' }" :icon="ArrowLeft">
         {{ $t('common.backToBooking') }}
       </BaseButton>
-      <BaseButton :to="{ name: 'schedule' }" variant="secondary" :icon="CalendarDays">
+      <BaseButton
+        v-if="canView('schedule')"
+        :to="{ name: 'schedule' }"
+        variant="secondary"
+        :icon="CalendarDays"
+      >
         {{ $t('common.viewSchedule') }}
       </BaseButton>
     </div>

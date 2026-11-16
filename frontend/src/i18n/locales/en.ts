@@ -92,6 +92,8 @@ const en: Messages = {
     intro:
       'Choose how many sessions you want and pick your time slots. Your booking goes straight into the class schedule. To change it later, go to {link} and enter the phone number or email you used.',
     introLink: 'Change',
+    introNoEdit:
+      'Choose how many sessions you want and pick your time slots. Your booking goes straight into the class schedule.',
     students: 'student booked | students booked',
     slots: 'time slot this week | time slots this week',
     capacity: 'max per slot',
@@ -263,6 +265,16 @@ const en: Messages = {
     title: 'Page not found',
     body: "This link doesn't exist or has changed.",
   },
+  pages: {
+    hiddenTitle: '{page} (turned off)',
+    hiddenShort: 'turned off',
+    offTitle: 'This page is turned off',
+    offBody: 'The class has turned this page off for now. You can still use the pages below.',
+    offBodyNone: 'The class has turned this page off for now. Please check back later.',
+    previewNotice:
+      "This page is turned off: students can't see or use it. You can see it because you're an admin.",
+    manage: 'Turn pages on or off',
+  },
   privacy: {
     version: 'Version {version}',
     intro:
@@ -365,6 +377,7 @@ const en: Messages = {
     tabBookings: 'Bookings',
     tabAttendance: 'Attendance',
     tabSettings: 'Class settings',
+    tabPages: 'Pages',
     tabUsers: 'Admins',
     statStudents: 'Students',
     statSeats: 'Sessions',
@@ -646,6 +659,30 @@ const en: Messages = {
     loadFailed: "Couldn't load the accounts.",
     actionFailed: "That didn't work, please try again.",
   },
+  adminPages: {
+    intro:
+      "Choose which pages students can see. A page that's off disappears from the menu, anyone opening its link only sees a notice, and the server refuses its actions too. Admins can still open it to check it.",
+    count: '{on} of {total} pages on',
+    on: 'On',
+    off: 'Off',
+    open: 'Open page',
+    descriptions: {
+      booking: 'Students choose how many sessions and which slots they want. Also the home page.',
+      edit: 'Students enter their phone/email to see, change or delete their booking.',
+      checkin: "Students check themselves in to today's class.",
+      schedule: 'How many students booked each slot this week.',
+      members: "Students' Zalo names, their classes this week and their attendance.",
+    },
+    offWarnings: {
+      booking:
+        "While it's off, students can't book or change their sessions, even when the week is open for booking.",
+      edit: "The personal data notice tells students to use this page to see or delete their booking. While it's off, handle those requests yourself when students get in touch.",
+    },
+    allOff: 'Every page is off: visitors only see the turned-off notice.',
+    turnedOn: 'The {page} page is on.',
+    turnedOff: 'The {page} page is off.',
+    saveFailed: "Couldn't save, please try again.",
+  },
   apiErrors: {
     NETWORK: "Can't reach the server. Check your connection and try again.",
     TIMEOUT: 'The server took too long to respond, please try again.',
@@ -692,6 +729,7 @@ const en: Messages = {
     CHECKIN_TOO_EARLY: 'It’s too early to check in to "{slot}". Check-in opens at {from}.',
     CHECKIN_ENDED:
       'Your class today has ended, so you can no longer check in. Please tell an admin.',
+    PAGE_DISABLED: 'This page is turned off for now.',
   },
   errors: {
     generic: 'Something went wrong, please try again.',

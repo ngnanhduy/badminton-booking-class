@@ -2,7 +2,7 @@ import { desc, eq } from 'drizzle-orm'
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 
-import { bookings, ROLES } from '../../db/schema.js'
+import { bookings, PAGES, ROLES } from '../../db/schema.js'
 import { forbidden, notFound } from '../../lib/errors.js'
 import { listAttendance, markAttendance } from '../attendance/attendance.service.js'
 import { audit, listAuditLogs } from '../audit/audit.service.js'
@@ -12,6 +12,7 @@ import { createUser, deleteUser, isValidLoginId, listUsers, resetPassword } from
 import { decryptBooking, decryptContact, purgeExpiredBookings } from '../bookings/booking.service.js'
 import { MembersQuery } from '../members/members.routes.js'
 import { listMembers } from '../members/members.service.js'
+import { setPages } from '../pages/pages.service.js'
 import { getSchedule } from '../schedule/schedule.service.js'
 import { createWeek, getCurrentWeek, listWeeks, toWeekDto, updateWeek } from '../weeks/weeks.service.js'
 
@@ -65,6 +66,9 @@ const AttendanceBody = z.object({
     .min(1)
     .max(500),
 })
+
+/** Public pages to turn on (true) or off (false); pages left out keep their state. */
+const PagesBody = z.partialRecord(z.enum(PAGES), z.boolean())
 
 const CreateUserBody = z.object({
   /** Email or username (see isValidLoginId). */
@@ -194,6 +198,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.put('/settings', async (request) => {
     const current = await getCurrentWeek(app.deps.db)
     await updateWeek(app.deps.db, current.id, WeekFields.parse(request.body), by(request))
+    return getSchedule(app.deps.db, app.deps.config)
+  })
+
+  /**
+   * Turns public pages (menu tabs) on or off. Returns the public schedule, whose `pages`
+   * shows the new state.
+   */
+  app.put('/pages', async (request) => {
+    await setPages(app.deps.db, PagesBody.parse(request.body), by(request))
     return getSchedule(app.deps.db, app.deps.config)
   })
 

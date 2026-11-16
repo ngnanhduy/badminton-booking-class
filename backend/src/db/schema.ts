@@ -144,6 +144,20 @@ export const auditLogs = pgTable(
 )
 
 /**
+ * Public pages of the website (the tabs of the menu), named like the frontend's routes.
+ * Admins can turn each one off.
+ */
+export const PAGES = ['booking', 'edit', 'checkin', 'schedule', 'members'] as const
+export type Page = (typeof PAGES)[number]
+
+/** Pages an admin turned on or off. A page without a row is on. */
+export const pageSettings = pgTable('page_settings', {
+  page: text('page').primaryKey(),
+  enabled: boolean('enabled').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+/**
  * Roles that can sign in. Only admins for now; to add one (e.g. 'coach'), extend this list,
  * the CHECK constraint (new migration) and the route guards.
  */

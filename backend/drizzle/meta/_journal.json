@@ -78,6 +78,13 @@
       "when": 1794815076077,
       "tag": "0010_makeup_slots",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794817836985,
+      "tag": "0011_page_settings",
+      "breakpoints": true
     }
   ]
 }

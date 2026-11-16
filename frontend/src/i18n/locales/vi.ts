@@ -94,6 +94,8 @@ const vi = {
     intro:
       'Chọn số buổi và ca tập phù hợp. Đăng ký được lưu ngay vào bảng lịch của lớp. Muốn đổi lịch, vào mục {link} và nhập số điện thoại hoặc email đã đăng ký.',
     introLink: 'Sửa lịch',
+    /** The intro while the edit page is turned off (no link to it). */
+    introNoEdit: 'Chọn số buổi và ca tập phù hợp. Đăng ký được lưu ngay vào bảng lịch của lớp.',
     students: 'học viên đã đăng ký',
     slots: 'ca tập trong tuần',
     capacity: 'người tối đa mỗi ca',
@@ -264,6 +266,17 @@ const vi = {
     title: 'Không tìm thấy trang',
     body: 'Đường dẫn không tồn tại hoặc đã được thay đổi.',
   },
+  /** Public pages an admin turned off. */
+  pages: {
+    hiddenTitle: '{page} (đang tắt)',
+    hiddenShort: 'đang tắt',
+    offTitle: 'Trang này đang tạm tắt',
+    offBody: 'Lớp đang tạm tắt trang này. Bạn vẫn có thể dùng các trang bên dưới.',
+    offBodyNone: 'Lớp đang tạm tắt trang này. Vui lòng quay lại sau.',
+    previewNotice:
+      'Trang này đang tắt: học viên không thấy và không dùng được. Bạn vẫn xem được vì là quản trị viên.',
+    manage: 'Bật/tắt trang',
+  },
   privacy: {
     version: 'Phiên bản {version}',
     intro:
@@ -367,6 +380,7 @@ const vi = {
     tabBookings: 'Đăng ký',
     tabAttendance: 'Điểm danh',
     tabSettings: 'Cài đặt lớp',
+    tabPages: 'Trang web',
     tabUsers: 'Quản trị viên',
     statStudents: 'Học viên',
     statSeats: 'Lượt tập',
@@ -642,6 +656,30 @@ const vi = {
     loadFailed: 'Không tải được danh sách tài khoản.',
     actionFailed: 'Không thực hiện được, vui lòng thử lại.',
   },
+  adminPages: {
+    intro:
+      'Chọn trang nào học viên được thấy. Trang đã tắt sẽ ẩn khỏi menu, ai mở đường dẫn của trang chỉ thấy thông báo tạm tắt, và máy chủ cũng từ chối các thao tác của trang đó. Quản trị viên vẫn mở được để kiểm tra.',
+    count: 'Đang bật {on}/{total} trang',
+    on: 'Đang bật',
+    off: 'Đang tắt',
+    open: 'Mở trang',
+    descriptions: {
+      booking: 'Học viên chọn số buổi và ca tập trong tuần. Đây cũng là trang chủ.',
+      edit: 'Học viên nhập số điện thoại/email để xem, sửa hoặc xoá đăng ký.',
+      checkin: 'Học viên tự điểm danh ca học hôm nay.',
+      schedule: 'Số học viên đã đăng ký từng ca trong tuần.',
+      members: 'Tên Zalo, lịch học trong tuần và điểm danh của học viên.',
+    },
+    offWarnings: {
+      booking:
+        'Khi tắt, học viên không đăng ký mới và không đổi lịch được, kể cả khi tuần đang mở đăng ký.',
+      edit: 'Thông báo về dữ liệu cá nhân hướng dẫn học viên dùng trang này để xem hoặc xoá đăng ký. Khi tắt, hãy tự xử lý các yêu cầu đó khi học viên liên hệ.',
+    },
+    allOff: 'Tất cả các trang đang tắt: khách truy cập chỉ thấy thông báo tạm tắt.',
+    turnedOn: 'Đã bật trang {page}.',
+    turnedOff: 'Đã tắt trang {page}.',
+    saveFailed: 'Không lưu được, vui lòng thử lại.',
+  },
   apiErrors: {
     NETWORK: 'Không kết nối được máy chủ. Kiểm tra mạng và thử lại.',
     TIMEOUT: 'Máy chủ phản hồi quá lâu, vui lòng thử lại.',
@@ -687,6 +725,7 @@ const vi = {
     CHECKIN_TOO_EARLY: 'Chưa đến giờ điểm danh ca "{slot}". Bạn có thể điểm danh từ {from}.',
     CHECKIN_ENDED:
       'Ca học hôm nay của bạn đã kết thúc nên không thể tự điểm danh. Vui lòng báo quản trị viên.',
+    PAGE_DISABLED: 'Trang này đang tạm tắt.',
   },
   errors: {
     generic: 'Đã có lỗi xảy ra, vui lòng thử lại.',

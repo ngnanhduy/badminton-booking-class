@@ -11,6 +11,9 @@ export interface PrivacyInfo {
 /** 'upcoming' = switched on, but the opening time hasn't come yet. */
 export type RegistrationStatus = 'open' | 'upcoming' | 'closed'
 
+/** Public pages (menu tabs) admins can turn off, by route name. */
+export type PageId = 'booking' | 'edit' | 'checkin' | 'schedule' | 'members'
+
 /** Weekly schedule returned by `GET /api/v1/schedule`. */
 export interface ScheduleConfig {
   /**
@@ -46,6 +49,8 @@ export interface ScheduleConfig {
   counts: Record<string, number>
   /** Self check-in opens this many minutes before a class starts. */
   checkInEarlyMinutes: number
+  /** Which public pages are turned on (older servers leave it out: all on). */
+  pages?: Record<PageId, boolean>
   /** Number of students who booked this week. */
   totalBookings: number
   privacy: PrivacyInfo

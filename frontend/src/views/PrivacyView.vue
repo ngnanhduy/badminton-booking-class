@@ -6,11 +6,13 @@ import { CalendarClock, LockKeyhole } from '@lucide/vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import { useClubName } from '@/composables/useClubName'
+import { usePages } from '@/composables/usePages'
 import { useScheduleStore } from '@/stores/schedule'
 
 const { t, tm, rt } = useI18n()
 const schedule = useScheduleStore()
 const clubName = useClubName()
+const { canView } = usePages()
 onMounted(() => schedule.load())
 
 const privacy = computed(() => schedule.config?.privacy)
@@ -61,10 +63,10 @@ const sections = computed(() => {
       </BaseCard>
 
       <div class="mt-6 flex flex-wrap gap-2">
-        <BaseButton :to="{ name: 'edit' }" :icon="CalendarClock">
+        <BaseButton v-if="canView('edit')" :to="{ name: 'edit' }" :icon="CalendarClock">
           {{ t('privacy.manage') }}
         </BaseButton>
-        <BaseButton :to="{ name: 'booking' }" variant="secondary">
+        <BaseButton v-if="canView('booking')" :to="{ name: 'booking' }" variant="secondary">
           {{ t('common.backToBooking') }}
         </BaseButton>
       </div>

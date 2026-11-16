@@ -2,10 +2,11 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { CalendarCog, ClipboardCheck, ClipboardList, UsersRound } from '@lucide/vue'
+import { CalendarCog, ClipboardCheck, ClipboardList, PanelsTopLeft, UsersRound } from '@lucide/vue'
 
 import AdminAttendance from '@/components/admin/AdminAttendance.vue'
 import AdminBookings from '@/components/admin/AdminBookings.vue'
+import AdminPages from '@/components/admin/AdminPages.vue'
 import AdminSettings from '@/components/admin/AdminSettings.vue'
 import AdminUsers from '@/components/admin/AdminUsers.vue'
 import { useScheduleStore } from '@/stores/schedule'
@@ -26,6 +27,7 @@ const TABS = [
     component: AdminAttendance,
   },
   { id: 'cai-dat', labelKey: 'admin.tabSettings', icon: CalendarCog, component: AdminSettings },
+  { id: 'trang', labelKey: 'admin.tabPages', icon: PanelsTopLeft, component: AdminPages },
   { id: 'quan-tri-vien', labelKey: 'admin.tabUsers', icon: UsersRound, component: AdminUsers },
 ] as const
 

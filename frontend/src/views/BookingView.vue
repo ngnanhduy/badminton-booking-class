@@ -13,6 +13,7 @@ import BaseAlert from '@/components/ui/BaseAlert.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { usePages } from '@/composables/usePages'
 import { appConfig } from '@/config/app'
 import { formatWhen } from '@/i18n/format'
 import { DEMO_RETURNING_CONTACT } from '@/services/mockApi'
@@ -21,6 +22,7 @@ import { useScheduleStore } from '@/stores/schedule'
 
 const schedule = useScheduleStore()
 const booking = useBookingStore()
+const { canView } = usePages()
 
 onMounted(() => schedule.load())
 
@@ -111,7 +113,12 @@ function startOver() {
               $t('booking.upcomingBody', { date: formatWhen(schedule.config.opensAt ?? '') })
             "
           >
-            <BaseButton :to="{ name: 'schedule' }" variant="secondary" :icon="CalendarDays">
+            <BaseButton
+              v-if="canView('schedule')"
+              :to="{ name: 'schedule' }"
+              variant="secondary"
+              :icon="CalendarDays"
+            >
               {{ $t('common.viewSchedule') }}
             </BaseButton>
           </EmptyState>
@@ -123,7 +130,12 @@ function startOver() {
             :title="$t('booking.closedTitle')"
             :description="$t('booking.closedBody')"
           >
-            <BaseButton :to="{ name: 'schedule' }" variant="secondary" :icon="CalendarDays">
+            <BaseButton
+              v-if="canView('schedule')"
+              :to="{ name: 'schedule' }"
+              variant="secondary"
+              :icon="CalendarDays"
+            >
               {{ $t('common.viewSchedule') }}
             </BaseButton>
           </EmptyState>

@@ -3,6 +3,7 @@ import { and, eq, ne } from 'drizzle-orm'
 import type { AppConfig } from '../../config/env.js'
 import type { Db } from '../../db/client.js'
 import { bookings } from '../../db/schema.js'
+import { getPages, type PageFlags } from '../pages/pages.service.js'
 import { getCurrentWeek, registrationStatus, type RegistrationStatus } from '../weeks/weeks.service.js'
 
 export interface ScheduleDto {
@@ -28,6 +29,8 @@ export interface ScheduleDto {
   totalBookings: number
   /** Self check-in opens this many minutes before a class starts. */
   checkInEarlyMinutes: number
+  /** Which public pages (menu tabs) are turned on. */
+  pages: PageFlags
   privacy: {
     policyVersion: string
     retentionDays: number
@@ -67,7 +70,7 @@ export async function countSlots(db: Reader, weekLabel: string, excludeId?: stri
 
 /** The week the public pages show (the open one, else the latest), with slot counts. */
 export async function getSchedule(db: Reader, config: AppConfig): Promise<ScheduleDto> {
-  const w = await getCurrentWeek(db)
+  const [w, pages] = await Promise.all([getCurrentWeek(db), getPages(db)])
   const { counts, total } = await countSlots(db, w.label)
   return {
     weekLabel: w.label,
@@ -85,6 +88,7 @@ export async function getSchedule(db: Reader, config: AppConfig): Promise<Schedu
     counts,
     totalBookings: total,
     checkInEarlyMinutes: config.CHECKIN_EARLY_MINUTES,
+    pages,
     privacy: {
       policyVersion: config.PRIVACY_POLICY_VERSION,
       retentionDays: config.RETENTION_DAYS,

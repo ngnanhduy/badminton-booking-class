@@ -8,6 +8,7 @@ import BookedSessionList from '@/components/booking/BookedSessionList.vue'
 import BaseAlert from '@/components/ui/BaseAlert.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
+import { usePages } from '@/composables/usePages'
 import { api, errorMessage } from '@/services/api'
 import { useBookingStore } from '@/stores/booking'
 import { useScheduleStore } from '@/stores/schedule'
@@ -18,6 +19,7 @@ const { t } = useI18n()
 const router = useRouter()
 const schedule = useScheduleStore()
 const booking = useBookingStore()
+const { canView } = usePages()
 
 const contact = ref('')
 const touched = ref(false)
@@ -169,22 +171,25 @@ async function deleteBooking() {
             :makeup-slot="found.makeupSlot"
             :makeup="found.makeup"
           />
-          <BaseButton
-            class="mt-5"
-            size="lg"
-            block
-            :icon="Pencil"
-            :disabled="!!schedule.config && !schedule.isOpen"
-            @click="startEditing"
-          >
-            {{ t('edit.change') }}
-          </BaseButton>
-          <p
-            v-if="!!schedule.config && !schedule.isOpen"
-            class="mt-2 text-center text-xs text-zinc-500 dark:text-zinc-400"
-          >
-            {{ t('edit.closedNote') }}
-          </p>
+          <!-- Changes are made on the booking form: not offered while that page is off. -->
+          <template v-if="canView('booking')">
+            <BaseButton
+              class="mt-5"
+              size="lg"
+              block
+              :icon="Pencil"
+              :disabled="!!schedule.config && !schedule.isOpen"
+              @click="startEditing"
+            >
+              {{ t('edit.change') }}
+            </BaseButton>
+            <p
+              v-if="!!schedule.config && !schedule.isOpen"
+              class="mt-2 text-center text-xs text-zinc-500 dark:text-zinc-400"
+            >
+              {{ t('edit.closedNote') }}
+            </p>
+          </template>
 
           <div class="mt-5 border-t border-zinc-950/5 pt-4 dark:border-white/[0.07]">
             <BaseButton
