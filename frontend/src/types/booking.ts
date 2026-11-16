@@ -84,6 +84,19 @@ export interface ExistingBooking {
   weekLabel: string
 }
 
+/** A schedule the student booked in an earlier week, offered again on the booking form. */
+export interface PastSchedule {
+  weekLabel: string
+  count: SessionCount
+  /** Slot labels in session order (length === count). */
+  slots: string[]
+}
+
+export interface HistoryResponse {
+  /** Newest first, one per distinct set of slots (at most 3). Empty for a new student. */
+  history: PastSchedule[]
+}
+
 /** Result of a self check-in. */
 export interface CheckInResult {
   zaloName: string
@@ -138,10 +151,15 @@ export interface DayGroup {
 
 /**
  * One student across all weeks kept, from the public `GET /api/v1/members`. Never contains
- * phone/email, notes or ids.
+ * phone/email, notes or ids (admins can ask for the phone/email, see `contact`).
  */
 export interface Member {
   zaloName: string
+  /**
+   * Phone or email. Only from the admin endpoint `GET /api/v1/admin/members` (each request is
+   * audited); the public list never has it.
+   */
+  contact?: string
   /** Number of weeks booked. */
   weeks: number
   /** Sessions booked in total. */

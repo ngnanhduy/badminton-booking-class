@@ -101,7 +101,8 @@ const vi = {
   },
   booking: {
     demoTitle: 'Đang chạy ở chế độ demo',
-    demoBody: 'Dùng dữ liệu mẫu, đăng ký sẽ không được lưu. Bỏ {flag} để kết nối với máy chủ.',
+    demoBody:
+      'Dùng dữ liệu mẫu, đăng ký sẽ không được lưu. Bỏ {flag} để kết nối với máy chủ. Nhập số {phone} để xem gợi ý lịch từ các tuần trước.',
     editingTitle: 'Bạn đang sửa đăng ký đã gửi',
     editingBody: 'Thay đổi các buổi bên dưới rồi bấm {save}. Lịch cũ sẽ được thay thế.',
     cancelEditing: 'Huỷ, đăng ký mới',
@@ -138,10 +139,30 @@ const vi = {
     consentControllerFallback: 'lớp',
     submitErrorTitle: 'Chưa gửi được đăng ký',
   },
+  history: {
+    title: 'Đăng ký lại lịch quen thuộc?',
+    description:
+      'Đây là lịch bạn đã đăng ký các tuần trước. Chọn một lịch để điền sẵn bước 2 và 3, hoặc tự chọn giờ bên dưới.',
+    week: 'Tuần {week}',
+    sessions: '{n} buổi',
+    use: 'Dùng lịch này',
+    selected: 'Đã chọn',
+    unusable: 'Không dùng được',
+    pickRest: 'Một số ca không đăng ký được tuần này: hãy chọn ca cho buổi còn trống ở bước 3.',
+    dismiss: 'Không, tôi sẽ tự chọn giờ',
+    reason: {
+      notOffered: 'không có trong lịch tuần này',
+      past: 'thuộc ngày đã qua',
+      full: 'đã đủ người tuần này',
+      sameDay: 'trùng ngày với buổi khác',
+    },
+  },
   slot: {
     takenBy: 'Đã chọn cho Buổi {n}',
     sameDayAs: 'Trùng ngày với Buổi {n}',
     sameDay: 'Trùng ngày',
+    past: 'Đã qua',
+    pastDay: 'Ngày này đã qua',
     full: 'Đã đủ người',
     seatsLeft: 'còn {n} chỗ',
     people: '{n} người',
@@ -159,6 +180,7 @@ const vi = {
     slotNotInSchedule: 'Ca "{slot}" không có trong lịch Buổi {n}.',
     slotDuplicate: 'Các buổi không được trùng ca.',
     slotSameDay: 'Buổi {n} đã chọn ngày này. Vui lòng chọn ngày khác.',
+    slotPast: 'Ca "{slot}" thuộc ngày đã qua. Vui lòng chọn ca khác.',
   },
   summary: {
     title: 'Đăng ký của bạn',
@@ -282,7 +304,7 @@ const vi = {
       {
         title: '6. Chia sẻ dữ liệu',
         body: [
-          'Tên Zalo, các ca bạn đã đăng ký và tình hình chuyên cần (số buổi có mặt/vắng) được hiển thị công khai ở trang Học viên để các thành viên biết ai đang học cùng lớp. Số điện thoại/email và ghi chú không bao giờ hiển thị ở đó.',
+          'Tên Zalo, các ca bạn đã đăng ký và tình hình chuyên cần (số buổi có mặt/vắng) được hiển thị công khai ở trang Học viên để các thành viên biết ai đang học cùng lớp. Số điện thoại/email và ghi chú không bao giờ hiển thị công khai ở đó; chỉ quản trị viên đã đăng nhập mới xem được số điện thoại/email.',
           'Ngoài ra, dữ liệu chỉ được dùng nội bộ bởi người quản lý lớp. Chúng tôi không bán, không chia sẻ cho bên thứ ba vì mục đích quảng cáo.',
         ],
       },
@@ -403,6 +425,7 @@ const vi = {
     statAttendanceHint: '{present}/{total} buổi',
     notMarked: 'Chưa điểm danh',
     search: 'Tìm theo tên',
+    searchWithContact: 'Tìm theo tên, SĐT hoặc email',
     sortLabel: 'Sắp xếp',
     sort: {
       name: 'Tên (A–Z)',
@@ -430,11 +453,28 @@ const vi = {
     empty: 'Chưa có học viên',
     emptyHint: 'Học viên sẽ xuất hiện sau lần đăng ký đầu tiên.',
     privacyNote:
-      '{n} học viên. Số điện thoại, email và ghi chú không bao giờ hiển thị ở trang này.',
+      '{n} học viên. Số điện thoại, email và ghi chú không bao giờ hiển thị công khai ở trang này.',
+    privacyNoteAdmin:
+      '{n} học viên. Chỉ quản trị viên xem được số điện thoại và email, mỗi lần xem đều được ghi nhật ký. Ghi chú không hiển thị ở trang này.',
     intro:
       'Ai tập ngày nào trong tuần và tình hình chuyên cần của từng học viên. Việc điểm danh do quản trị viên thực hiện.',
     takeAttendance: 'Điểm danh',
     loadFailed: 'Không tải được danh sách học viên.',
+    exportExcel: 'Xuất Excel',
+    exportTitle: 'Tải danh sách học viên của tuần đang xem dưới dạng file Excel',
+    showContacts: 'Hiện SĐT / email',
+    hideContacts: 'Ẩn SĐT / email',
+    contactsTitle:
+      'Chỉ quản trị viên thấy nút này. Mỗi lần xem số điện thoại / email đều được ghi nhật ký.',
+    export: {
+      contact: 'SĐT/Email',
+      weekSessions: 'Số buổi tuần này',
+      weeks: 'Số tuần đã đăng ký',
+      sessions: 'Tổng số buổi đã đăng ký',
+      attended: 'Có mặt (tổng)',
+      absent: 'Vắng (tổng)',
+      lastWeek: 'Tuần đăng ký gần nhất',
+    },
   },
   adminSettings: {
     tabsLabel: 'Mục cài đặt lớp',
@@ -609,6 +649,7 @@ const vi = {
     SLOT_INVALID: 'Ca "{slot}" không hợp lệ.',
     SLOT_DUPLICATE: 'Các buổi không được trùng ca.',
     SLOT_SAME_DAY: 'Các buổi phải vào các ngày khác nhau ({day} bị chọn 2 lần).',
+    SLOT_PAST: 'Ca "{slot}" thuộc ngày đã qua. Vui lòng chọn ca khác.',
     SLOT_NOT_BOOKED: 'Học viên không đăng ký ca "{slot}".',
     SLOT_FULL: 'Ca "{slot}" đã đủ người, vui lòng chọn ca khác.',
     NAME_TAKEN:

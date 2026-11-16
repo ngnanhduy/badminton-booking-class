@@ -87,6 +87,19 @@ describe('validateBooking', () => {
     expect(validateBooking(three, separate).slot2).toContain('không có trong lịch Buổi 3')
   })
 
+  it('refuses slots on days that are over, except ones already booked', () => {
+    const tuesday = { pastDays: new Set([0]) } // Monday is over
+    const monday = draft({ slots: ['Thứ 2 18h - 20h'] })
+    expect(validateBooking(monday, config, tuesday).slot0).toBe(
+      'Ca "Thứ 2 18h - 20h" thuộc ngày đã qua. Vui lòng chọn ca khác.',
+    )
+    expect(validateBooking(draft({ slots: ['Thứ 4 18h - 20h'] }), config, tuesday)).toEqual({})
+    // A student changing their booking may keep the Monday session they already have.
+    expect(
+      validateBooking(monday, config, { ...tuesday, kept: ['Thứ 2 18h - 20h'] }),
+    ).toEqual({})
+  })
+
   it('passes a complete booking', () => {
     const errors = validateBooking(
       draft({ count: 2, slots: ['Thứ 4 18h - 20h', 'Thứ 3 14h - 16h', ''] }),

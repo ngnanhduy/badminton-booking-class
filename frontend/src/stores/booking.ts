@@ -5,7 +5,16 @@ import { useLocalStorage } from '@vueuse/core'
 import { appConfig } from '@/config/app'
 import { t } from '@/i18n'
 import { api, errorMessage } from '@/services/api'
-import type { BookingPayload, BookingResult, ExistingBooking, SessionCount } from '@/types/booking'
+import type {
+  BookingPayload,
+  BookingResult,
+  ExistingBooking,
+  PastSchedule,
+  SessionCount,
+} from '@/types/booking'
+import { normalizeContact } from '@/utils/contact'
+import { fitSchedule, type ScheduleFit } from '@/utils/history'
+import { sessionSlots } from '@/utils/slots'
 import { MAX_MAKEUP_LENGTH, validateBooking } from '@/utils/validation'
 import { useScheduleStore } from './schedule'
 
@@ -27,6 +36,11 @@ export const useBookingStore = defineStore('booking', () => {
 
   /** True while changing an existing booking (contact is then locked). */
   const editing = ref(false)
+  /**
+   * Slots of the saved booking being changed. They stay allowed after their day is over, so
+   * a student can still edit the rest of the week without giving up a session already held.
+   */
+  const savedSlots = ref<string[]>([])
   /** Session tab currently being edited (0-based). */
   const activeSession = ref(0)
   const showErrors = ref(false)
@@ -44,7 +58,12 @@ export const useBookingStore = defineStore('booking', () => {
     },
   )
 
-  const errors = computed(() => validateBooking(form, schedule.config))
+  const errors = computed(() =>
+    validateBooking(form, schedule.config, {
+      pastDays: schedule.pastDays,
+      kept: savedSlots.value,
+    }),
+  )
   const isValid = computed(() => Object.keys(errors.value).length === 0)
 
   const selectedSlots = computed(() =>
@@ -79,6 +98,81 @@ export const useBookingStore = defineStore('booking', () => {
     }
   }
 
+  /* Schedules from earlier weeks, suggested once the student enters their phone/email. */
+
+  /** Earlier schedules found for `historyFor` (a normalized contact). */
+  const history = ref<PastSchedule[]>([])
+  const historyFor = ref('')
+  const historyDismissed = ref(false)
+  /** The suggestion last used to fill the form. */
+  const appliedSchedule = ref<PastSchedule | null>(null)
+  /** Answers per normalized contact, so retyping the same contact doesn't ask again. */
+  const historyCache = new Map<string, PastSchedule[]>()
+
+  const normalizedContact = computed(() => normalizeContact(form.contact)?.value ?? '')
+
+  /** Suggestions to show: only for the contact currently typed, and not while editing. */
+  const suggestions = computed(() =>
+    !editing.value && !historyDismissed.value && historyFor.value === normalizedContact.value
+      ? history.value
+      : [],
+  )
+
+  /** Looks up earlier schedules for the contact in the form. Quietly does nothing on failure. */
+  async function loadHistory() {
+    const contact = normalizedContact.value
+    if (!contact || editing.value || contact === historyFor.value) return
+    let found = historyCache.get(contact)
+    if (!found) {
+      try {
+        found = await api.bookingHistory(contact)
+      } catch {
+        return // only a shortcut: the student can still pick slots by hand
+      }
+      historyCache.set(contact, found)
+    }
+    if (contact !== normalizedContact.value) return // the contact changed meanwhile
+    history.value = found
+    historyFor.value = contact
+    historyDismissed.value = false
+  }
+
+  /** How an earlier schedule fits this week (slots full, over or no longer offered drop out). */
+  function fitPastSchedule(past: PastSchedule): ScheduleFit {
+    return fitSchedule(past, {
+      offered: sessionSlots(schedule.config),
+      pastDays: schedule.pastDays,
+      isFull: schedule.isFull,
+    })
+  }
+
+  /** Fills steps 2–3 with an earlier schedule. Slots that can't be booked are left to pick. */
+  function applyPastSchedule(past: PastSchedule) {
+    const { slots } = fitPastSchedule(past)
+    form.count = past.count
+    form.slots = [0, 1, 2].map((i) => slots[i] ?? '')
+    activeSession.value = Math.max(0, slots.indexOf(''))
+    submitError.value = ''
+    appliedSchedule.value = past
+  }
+
+  /** Whether the form still holds `past` as it was filled in. */
+  function isApplied(past: PastSchedule) {
+    if (appliedSchedule.value !== past || form.count !== past.count) return false
+    return fitPastSchedule(past).slots.every((slot, i) => !slot || form.slots[i] === slot)
+  }
+
+  function dismissHistory() {
+    historyDismissed.value = true
+  }
+
+  function clearHistory() {
+    history.value = []
+    historyFor.value = ''
+    historyDismissed.value = false
+    appliedSchedule.value = null
+  }
+
   async function submit(): Promise<boolean> {
     showErrors.value = true
     submitError.value = ''
@@ -98,6 +192,7 @@ export const useBookingStore = defineStore('booking', () => {
       const response = await api.submitBooking(payload)
       schedule.setConfig(response.config)
       rememberedName.value = payload.zaloName
+      savedSlots.value = payload.slots
       result.value = {
         ...payload,
         updated: response.updated,
@@ -125,6 +220,7 @@ export const useBookingStore = defineStore('booking', () => {
     form.contact = contact.trim()
     form.count = existing.count
     form.slots = [0, 1, 2].map((i) => (i < existing.count ? (existing.slots[i] ?? '') : ''))
+    savedSlots.value = existing.slots.slice(0, existing.count)
     form.makeup = existing.makeup
     form.consent = false // re-confirm consent for the changed booking
     activeSession.value = 0
@@ -139,6 +235,7 @@ export const useBookingStore = defineStore('booking', () => {
     form.zaloName = ''
     form.contact = ''
     editing.value = false
+    savedSlots.value = []
     form.count = null
     form.slots = ['', '', '']
     form.makeup = ''
@@ -147,11 +244,13 @@ export const useBookingStore = defineStore('booking', () => {
     showErrors.value = false
     submitError.value = ''
     result.value = null
+    clearHistory()
   }
 
   return {
     form,
     editing,
+    savedSlots,
     activeSession,
     showErrors,
     submitting,
@@ -164,6 +263,12 @@ export const useBookingStore = defineStore('booking', () => {
     progress,
     sessionUsing,
     toggleSlot,
+    suggestions,
+    loadHistory,
+    fitPastSchedule,
+    applyPastSchedule,
+    isApplied,
+    dismissHistory,
     submit,
     edit,
     loadBooking,

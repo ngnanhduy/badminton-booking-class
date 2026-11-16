@@ -6,7 +6,7 @@ import { purgeExpiredBookings } from '../src/modules/bookings/booking.service.js
 const config = loadConfig()
 const database = await openDatabaseFromConfig(config)
 const deleted = await purgeExpiredBookings(
-  { db: database.db, keyring: keyringFromConfig(config), config },
+  { db: database.db, keyring: keyringFromConfig(config), config, now: () => new Date() },
   'admin',
 )
 console.log(`Deleted ${deleted} booking(s) older than ${config.RETENTION_DAYS} days.`)

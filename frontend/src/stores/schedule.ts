@@ -6,6 +6,7 @@ import { t } from '@/i18n'
 import { api, errorMessage } from '@/services/api'
 import type { RegistrationStatus, ScheduleConfig } from '@/types/booking'
 import { groupByDay, mergeSlots, sessionSlots } from '@/utils/slots'
+import { fromDateInput, pastWeekdays, toDateInput } from '@/utils/week'
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -37,6 +38,12 @@ export const useScheduleStore = defineStore('schedule', () => {
     return 'open'
   })
   const isOpen = computed(() => registration.value === 'open')
+  /** Today ("YYYY-MM-DD"): changes only at midnight, so day checks don't rerun every tick. */
+  const today = computed(() => toDateInput(now.value))
+  /** Weekdays of this week that are over (0 = Monday): their slots can't be booked any more. */
+  const pastDays = computed(() =>
+    config.value ? pastWeekdays(config.value, fromDateInput(today.value)!) : new Set<number>(),
+  )
   const capacity = computed(() => config.value?.capacity ?? null)
   /** Slots offered for each session, grouped by day: [session 1, session 2, session 3]. */
   const sessionDays = computed(() => sessionSlots(config.value).map((list) => groupByDay(list)))
@@ -95,6 +102,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     isLoading,
     registration,
     isOpen,
+    pastDays,
     capacity,
     sessionDays,
     allSlots,

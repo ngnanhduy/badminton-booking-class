@@ -2,8 +2,8 @@ import { and, eq } from 'drizzle-orm'
 
 import { attendance, bookings, weeks, type BookingRow } from '../../db/schema.js'
 import { conflict, notFound } from '../../lib/errors.js'
-import { slotDayIndex, slotTime } from '../../lib/slots.js'
-import { addDays, clockTime, daysBetween, localTime, startDateFromLabel, weekdayOf } from '../../lib/time.js'
+import { slotDate, slotTime } from '../../lib/slots.js'
+import { clockTime, daysBetween, localTime, startDateFromLabel } from '../../lib/time.js'
 import type { AppDeps } from '../../types.js'
 import { audit } from '../audit/audit.service.js'
 import { contactIndex, decryptName } from '../bookings/booking.service.js'
@@ -17,13 +17,6 @@ export interface CheckInResult {
   slot: string
   /** True when this session was already marked present (nothing changed). */
   alreadyCheckedIn: boolean
-}
-
-/** Calendar date a slot ("Thứ 2 18h - 20h") falls on in the week starting on `startDate`. */
-function slotDate(startDate: string, slot: string): string | null {
-  const day = slotDayIndex(slot)
-  if (day === null) return null
-  return addDays(startDate, (day - weekdayOf(startDate) + 7) % 7)
 }
 
 interface TodaySession {

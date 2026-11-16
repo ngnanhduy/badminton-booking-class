@@ -20,11 +20,24 @@ export function testConfig(overrides: Record<string, string> = {}): AppConfig {
 
 export const TEST_PASSWORD = 'correct horse battery'
 
-/** A fresh app on an in-memory PostgreSQL (PGlite). */
-export async function createTestApp(overrides: Record<string, string> = {}) {
+/**
+ * Start (00:00 Vietnam time) of the week a fresh database opens with. The default test clock,
+ * so booking any day of that week works whatever day the tests run.
+ */
+export const seededWeekStart = () =>
+  new Date(`${mondayOf(localTime(new Date(), 'Asia/Ho_Chi_Minh').date)}T00:00:00+07:00`)
+
+/**
+ * A fresh app on an in-memory PostgreSQL (PGlite). `now` is the clock for date rules
+ * (default: the start of the seeded week).
+ */
+export async function createTestApp(
+  overrides: Record<string, string> = {},
+  { now = seededWeekStart }: { now?: () => Date } = {},
+) {
   const config = testConfig(overrides)
   const database = await openDatabase({ pgliteDir: 'memory://' })
-  const app = await buildApp({ config, database })
+  const app = await buildApp({ config, database, now })
   const deps = app.deps
   return {
     app,

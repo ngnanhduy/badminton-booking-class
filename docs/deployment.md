@@ -160,6 +160,24 @@ waits about a minute. A free uptime monitor (for example UptimeRobot) that calls
 
 - **Back up the keys** (`ENCRYPTION_KEY`, `BLIND_INDEX_KEY`). They exist only in your `.env`,
   your password manager and Render's settings.
+- **Check that the rate limits see real client IPs.** Sign-in and phone/email lookups are
+  limited per IP, and the IP comes from the `X-Forwarded-For` header set by the host's proxy.
+  Some proxies (Render's, by user reports) keep a value the client sent, so test whether a
+  faked one is believed. In Git Bash or any Unix shell:
+
+  ```sh
+  for i in $(seq 1 12); do
+    curl -s -o /dev/null -w '%{http_code} ' -X POST https://<your-app>/api/v1/bookings/lookup \
+      -H 'Content-Type: application/json' -H "X-Forwarded-For: 203.0.113.$i" \
+      -d '{"contact":"0900000000"}'
+  done
+  ```
+
+  The last answers should be `429` (limited). If all 12 are `404`, anyone can dodge the limits:
+  set `TRUST_PROXY=1` on Render, redeploy and run it again. Then check that two networks (for
+  example phone data and home Wi-Fi) are still limited separately. If they aren't, try `2`.
+  The test itself locks your IP out of lookups for 10 minutes. On Vercel, `X-Forwarded-For` is
+  always replaced by the platform, so the default there (`true`) is right.
 - **Each week:** on **Quản trị → Cài đặt lớp → Mở / đóng tuần**, create the next week (**Tạo tuần
   mới**), close the current one and open the new one (**Mở đăng ký**). Alternatives are the
   `weeks` table in Supabase's Table Editor, or `POST`/`PUT /api/v1/admin/weeks` with your

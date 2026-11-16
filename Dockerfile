@@ -36,6 +36,9 @@ RUN npm ci --omit=dev --omit=optional --workspace=backend --include-workspace-ro
     --no-audit --no-fund
 
 # ---- 4. Runtime image ----
+# TRUST_PROXY=true takes the client IP (for rate limits) from the first X-Forwarded-For entry.
+# If the host's proxy appends to that header instead of replacing it, clients can fake it: set
+# TRUST_PROXY to the number of proxies instead (e.g. 1). See docs/deployment.md → "After deploying".
 FROM node:${NODE_VERSION}-alpine AS runtime
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \

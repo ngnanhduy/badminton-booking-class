@@ -5,6 +5,7 @@ import type {
   ExistingBooking,
   Member,
   MemberList,
+  PastSchedule,
   ScheduleConfig,
   SubmitResponse,
 } from '@/types/booking'
@@ -109,6 +110,18 @@ const DEMO_PAST_WEEKS = [
   { weekLabel: '2/11 - 8/11', startDate: '2026-11-02' },
   { weekLabel: '26/10 - 1/11', startDate: '2026-10-26' },
 ]
+
+/** In demo mode, this phone number has earlier weeks, to try the schedule suggestions. */
+export const DEMO_RETURNING_CONTACT = '0901234567'
+
+function createDemoHistory(): PastSchedule[] {
+  const [lastWeek, twoWeeksAgo] = DEMO_PAST_WEEKS.map((w) => w.weekLabel) as [string, string]
+  return [
+    { weekLabel: lastWeek, count: 2, slots: ['Thứ 2 18h - 20h', 'Thứ 5 18h - 20h'] },
+    // "Thứ 4 20h - 22h" is full this week: shows how a slot that can't be booked is handled.
+    { weekLabel: twoWeeksAgo, count: 2, slots: ['Thứ 3 18h - 20h', 'Thứ 4 20h - 22h'] },
+  ]
+}
 
 /** Slots booked that week; `marks` (slot → present) feed the week's attendance total. */
 type DemoWeek = { slots: string[]; marks?: Record<string, boolean> }
@@ -263,6 +276,14 @@ export function createMockApi(latencyMs = 600): BookingApi {
       const booking = bookings.get(contact.value)
       if (!booking) throw notFound(config.weekLabel)
       return clone(booking)
+    },
+
+    async bookingHistory(rawContact: string): Promise<PastSchedule[]> {
+      await delay(latencyMs)
+      const contact = normalizeContact(rawContact)
+      if (!contact) throw invalidContact()
+      // Bookings made in this browser are all in the current week, which isn't history.
+      return contact.value === DEMO_RETURNING_CONTACT ? createDemoHistory() : []
     },
 
     async deleteBooking(rawContact: string): Promise<DeleteResponse> {

@@ -15,6 +15,7 @@ import BaseCard from '@/components/ui/BaseCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { appConfig } from '@/config/app'
 import { formatWhen } from '@/i18n/format'
+import { DEMO_RETURNING_CONTACT } from '@/services/mockApi'
 import { useBookingStore } from '@/stores/booking'
 import { useScheduleStore } from '@/stores/schedule'
 
@@ -42,6 +43,9 @@ function startOver() {
           <code class="rounded bg-amber-100 px-1 py-0.5 text-xs font-semibold dark:bg-amber-400/15"
             >VITE_DEMO=true</code
           >
+        </template>
+        <template #phone>
+          <strong class="font-semibold tabular-nums">{{ DEMO_RETURNING_CONTACT }}</strong>
         </template>
       </i18n-t>
     </BaseAlert>

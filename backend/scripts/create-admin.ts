@@ -48,7 +48,7 @@ if (chosen !== undefined && chosen.length < PASSWORD_MIN_LENGTH) {
 
 const config = loadConfig()
 const database = await openDatabaseFromConfig(config)
-const deps = { db: database.db, keyring: keyringFromConfig(config), config }
+const deps = { db: database.db, keyring: keyringFromConfig(config), config, now: () => new Date() }
 const by = { actor: 'system' as const, actorId: null }
 
 try {

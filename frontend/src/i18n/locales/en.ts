@@ -99,7 +99,8 @@ const en: Messages = {
   },
   booking: {
     demoTitle: 'Running in demo mode',
-    demoBody: "Sample data only, bookings aren't saved. Remove {flag} to connect to the server.",
+    demoBody:
+      "Sample data only, bookings aren't saved. Remove {flag} to connect to the server. Enter {phone} as the phone number to see times suggested from earlier weeks.",
     editingTitle: "You're changing a booking",
     editingBody: 'Change the sessions below, then press {save}. Your previous booking is replaced.',
     cancelEditing: 'Cancel, make a new booking',
@@ -136,10 +137,30 @@ const en: Messages = {
     consentControllerFallback: 'the class',
     submitErrorTitle: "Your booking wasn't sent",
   },
+  history: {
+    title: 'Book your usual times?',
+    description:
+      'You booked these in earlier weeks. Pick one to fill in steps 2 and 3, or choose your own times below.',
+    week: 'Week of {week}',
+    sessions: '{n} session | {n} sessions',
+    use: 'Use',
+    selected: 'Selected',
+    unusable: 'Not available',
+    pickRest: "Some times can't be booked this week: choose a slot for the empty session in step 3.",
+    dismiss: "No thanks, I'll choose myself",
+    reason: {
+      notOffered: "isn't offered this week",
+      past: 'is on a day that has passed',
+      full: 'is full this week',
+      sameDay: 'is on the same day as another session',
+    },
+  },
   slot: {
     takenBy: 'Chosen for session {n}',
     sameDayAs: 'Same day as session {n}',
     sameDay: 'Same day',
+    past: 'Passed',
+    pastDay: 'This day has already passed',
     full: 'Full',
     seatsLeft: '{n} place left | {n} places left',
     people: '{n} person | {n} people',
@@ -157,6 +178,7 @@ const en: Messages = {
     slotNotInSchedule: '"{slot}" is not available for session {n}.',
     slotDuplicate: 'Sessions must be in different slots.',
     slotSameDay: 'Session {n} is already on this day. Please choose a different day.',
+    slotPast: '"{slot}" is on a day that has already passed. Please choose another slot.',
   },
   summary: {
     title: 'Your booking',
@@ -281,7 +303,7 @@ const en: Messages = {
       {
         title: '6. Sharing',
         body: [
-          'Your Zalo name, the slots you booked and your attendance (sessions attended/missed) are shown to everyone on the public Members page, so classmates can see who is in the class. Your phone number/email and notes are never shown there.',
+          'Your Zalo name, the slots you booked and your attendance (sessions attended/missed) are shown to everyone on the public Members page, so classmates can see who is in the class. Your phone number/email and notes are never shown publicly there; only signed-in admins can see your phone number/email.',
           "Apart from that, the data is only used internally by the class staff. We don't sell it or share it with third parties for advertising.",
         ],
       },
@@ -401,6 +423,7 @@ const en: Messages = {
     statAttendanceHint: '{present} of {total} sessions',
     notMarked: 'Not taken yet',
     search: 'Search by name',
+    searchWithContact: 'Search by name, phone or email',
     sortLabel: 'Sort by',
     sort: {
       name: 'Name (A–Z)',
@@ -428,11 +451,27 @@ const en: Messages = {
     empty: 'No members yet',
     emptyHint: 'Students appear here after their first booking.',
     privacyNote:
-      '{n} member. Phone numbers, emails and notes are never shown on this page. | {n} members. Phone numbers, emails and notes are never shown on this page.',
+      '{n} member. Phone numbers, emails and notes are never shown publicly on this page. | {n} members. Phone numbers, emails and notes are never shown publicly on this page.',
+    privacyNoteAdmin:
+      '{n} member. Only admins can see phone numbers and emails, and each view is logged. Notes are never shown on this page. | {n} members. Only admins can see phone numbers and emails, and each view is logged. Notes are never shown on this page.',
     intro:
       "Who's training which day this week, and each student's attendance. Attendance is taken by the class admins.",
     takeAttendance: 'Take attendance',
     loadFailed: "Couldn't load the members.",
+    exportExcel: 'Export to Excel',
+    exportTitle: 'Download the member list of the week shown as an Excel file',
+    showContacts: 'Show phone / email',
+    hideContacts: 'Hide phone / email',
+    contactsTitle: 'Only admins see this button. Each view of phone numbers and emails is logged.',
+    export: {
+      contact: 'Phone / email',
+      weekSessions: 'Sessions this week',
+      weeks: 'Weeks booked',
+      sessions: 'Sessions booked (all weeks)',
+      attended: 'Present (all weeks)',
+      absent: 'Absent (all weeks)',
+      lastWeek: 'Last week booked',
+    },
   },
   adminSettings: {
     tabsLabel: 'Class settings sections',
@@ -614,6 +653,7 @@ const en: Messages = {
     SLOT_INVALID: '"{slot}" is not a valid slot.',
     SLOT_DUPLICATE: 'Sessions must be in different slots.',
     SLOT_SAME_DAY: 'Each session must be on a different day ({day} was chosen twice).',
+    SLOT_PAST: '"{slot}" is on a day that has already passed. Please choose another slot.',
     SLOT_NOT_BOOKED: 'This student did not book "{slot}".',
     SLOT_FULL: '"{slot}" is full, please choose another slot.',
     NAME_TAKEN:

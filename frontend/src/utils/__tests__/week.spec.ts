@@ -5,6 +5,7 @@ import {
   fromLocalInput,
   mondayOf,
   nextWeekStart,
+  pastWeekdays,
   slotDate,
   startDateOf,
   toLocalInput,
@@ -37,6 +38,16 @@ describe('weekday dates', () => {
     expect(dayTiming(new Date(2026, 10, 9), at)).toBe('past')
     expect(dayTiming(new Date(2026, 10, 10), at)).toBe('today')
     expect(dayTiming(new Date(2026, 10, 11), at)).toBe('upcoming')
+  })
+
+  it('lists the days of a week that are over', () => {
+    const week = { startDate: '2026-11-09', weekLabel: '9/11 - 15/11' }
+    // Tuesday 10/11, late evening: only Monday is over, today stays open.
+    expect(pastWeekdays(week, new Date(2026, 10, 10, 23, 59))).toEqual(new Set([0]))
+    expect(pastWeekdays(week, new Date(2026, 10, 9, 8))).toEqual(new Set())
+    expect(pastWeekdays(week, new Date(2026, 10, 15))).toEqual(new Set([0, 1, 2, 3, 4, 5]))
+    expect(pastWeekdays({ startDate: '2026-11-16', weekLabel: '' }, today)).toEqual(new Set())
+    expect(pastWeekdays({ startDate: null, weekLabel: 'Tuần đặc biệt' }, today)).toEqual(new Set())
   })
 })
 

@@ -15,6 +15,7 @@ import { adminApi } from '@/services/admin'
 import { errorMessage } from '@/services/api'
 import { useScheduleStore } from '@/stores/schedule'
 import type { AdminBooking } from '@/types/admin'
+import { toCsv } from '@/utils/csv'
 import { parseSlot } from '@/utils/slots'
 
 const { t } = useI18n()
@@ -84,7 +85,10 @@ async function remove(id: string) {
   }
 }
 
-/** Excel-friendly CSV (UTF-8 BOM) of what is currently loaded. */
+/**
+ * Excel-friendly CSV (UTF-8 BOM) of what is currently loaded. Names and notes come from the
+ * public form, so cells that look like formulas are kept as text (see csvCell).
+ */
 function exportCsv() {
   const h = (key: string) => t(`adminBookings.csvHeaders.${key}`)
   const header = [
@@ -105,9 +109,7 @@ function exportCsv() {
     b.makeup,
     formatDateTime(b.updatedAt),
   ])
-  const csv = [header, ...lines]
-    .map((cols) => cols.map((c) => `"${c.replace(/"/g, '""')}"`).join(','))
-    .join('\r\n')
+  const csv = toCsv([header, ...lines])
   const url = URL.createObjectURL(new Blob(['﻿', csv], { type: 'text/csv;charset=utf-8' }))
   const link = document.createElement('a')
   link.href = url

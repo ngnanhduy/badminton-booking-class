@@ -25,19 +25,25 @@ export interface BuildAppOptions {
   /** Reuse an open database (tests); otherwise one is opened from the config. */
   database?: Database
   logger?: FastifyServerOptions['logger']
+  /** Clock for date rules; tests pin it so they don't depend on the day they run. */
+  now?: () => Date
 }
 
-export async function buildApp({ config, database, logger = false }: BuildAppOptions) {
+export async function buildApp({ config, database, logger = false, now = () => new Date() }: BuildAppOptions) {
+  const { TRUST_PROXY } = config
   const app = Fastify({
     logger,
-    trustProxy: config.TRUST_PROXY,
+    // A number of proxies: trust that many hops, read from the right of X-Forwarded-For (what
+    // Fastify does for a number, which its types don't accept).
+    trustProxy:
+      typeof TRUST_PROXY === 'number' ? (_address: string, hop: number) => hop < TRUST_PROXY : TRUST_PROXY,
     bodyLimit: 16 * 1024,
   })
 
   const db = database ?? (await openDatabaseFromConfig(config))
   if (!database) app.addHook('onClose', () => db.close())
 
-  app.decorate('deps', { db: db.db, keyring: keyringFromConfig(config), config })
+  app.decorate('deps', { db: db.db, keyring: keyringFromConfig(config), config, now })
 
   await app.register(helmet, {
     contentSecurityPolicy: {

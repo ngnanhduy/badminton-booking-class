@@ -1,3 +1,5 @@
+import { addDays, weekdayOf } from './time.js'
+
 /** Matches the weekday prefix of a slot label: "Thứ 2 18h - 20h", "Chủ nhật 10h - 12h", "CN 9h - 11h". */
 const DAY_PATTERN = /^\s*(?:thứ\s*([2-7])|(chủ\s*nhật|cn))(?:\s|$)/iu
 
@@ -16,6 +18,16 @@ export function slotDayIndex(label: string): number | null {
   const day = slotDay(label)
   if (!day) return null
   return day === 'cn' ? 6 : Number(day) - 2
+}
+
+/**
+ * Calendar date ("YYYY-MM-DD") a slot such as "Thứ 2 18h - 20h" falls on in the week starting
+ * on `startDate`, or null when the label has no recognisable day.
+ */
+export function slotDate(startDate: string, slot: string): string | null {
+  const day = slotDayIndex(slot)
+  if (day === null) return null
+  return addDays(startDate, (day - weekdayOf(startDate) + 7) % 7)
 }
 
 const TIME_PATTERN = /(\d{1,2})\s*(?:[h:]\s*(\d{2})?)?\s*[-–—]\s*(\d{1,2})\s*(?:[h:]\s*(\d{2})?)?/u

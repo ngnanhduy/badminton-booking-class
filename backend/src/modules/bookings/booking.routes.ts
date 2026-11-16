@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
 
 import { getSchedule } from '../schedule/schedule.service.js'
 import { ContactBody, SubmitBookingBody } from './booking.schemas.js'
-import { deleteBookingByContact, lookupBooking, submitBooking } from './booking.service.js'
+import { bookingHistory, deleteBookingByContact, lookupBooking, submitBooking } from './booking.service.js'
 
 /** Stricter limit for endpoints that take a phone/email, to slow down guessing. */
 const CONTACT_RATE_LIMIT = { rateLimit: { max: 10, timeWindow: '10 minutes' } }
@@ -20,6 +20,15 @@ export const bookingRoutes: FastifyPluginAsync = async (app) => {
   app.post('/bookings/lookup', { config: CONTACT_RATE_LIMIT }, async (request) => {
     const { contact } = ContactBody.parse(request.body)
     return { booking: await lookupBooking(app.deps, contact) }
+  })
+
+  /**
+   * Schedules booked in earlier weeks, for the booking form to suggest. Called as the student
+   * types their contact, so it gets a little more room than lookup/delete.
+   */
+  app.post('/bookings/history', { config: { rateLimit: { max: 20, timeWindow: '10 minutes' } } }, async (request) => {
+    const { contact } = ContactBody.parse(request.body)
+    return { history: await bookingHistory(app.deps, contact) }
   })
 
   /** Delete this week's booking and its personal data. */

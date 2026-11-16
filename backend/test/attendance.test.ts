@@ -2,16 +2,19 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { attendance, auditLogs, bookings } from '../src/db/schema.js'
 import { findSameDay, slotDay } from '../src/lib/slots.js'
-import { ADMIN_TOKEN, createTestApp, seededWeekLabel, validBooking } from './helpers.js'
+import { ADMIN_TOKEN, createTestApp, seededWeekLabel, seededWeekStart, validBooking } from './helpers.js'
 
 let ctx: Awaited<ReturnType<typeof createTestApp>>
 const auth = { authorization: `Bearer ${ADMIN_TOKEN}` }
+/** Test clock; a test may move it into an older week to book there. */
+let clock = seededWeekStart()
 
 beforeAll(async () => {
-  ctx = await createTestApp()
+  ctx = await createTestApp({}, { now: () => clock })
 })
 afterAll(() => ctx.close())
 beforeEach(async () => {
+  clock = seededWeekStart()
   await ctx.database.db.delete(attendance)
   await ctx.database.db.delete(bookings)
   await ctx.database.db.delete(auditLogs)
@@ -197,6 +200,7 @@ describe('members dashboard', () => {
     await setOpen(currentId, false)
     expect((await setOpen(oldId, true)).statusCode).toBe(200)
 
+    clock = new Date('2020-01-06T00:00:00+07:00') // book as if it were that week
     await book({ count: 2, slots: ['Thứ 2 18h - 20h', 'Thứ 4 18h - 20h'] })
     await book({ zaloName: 'Hoa', contact: 'hoa@example.com' })
     const ids = await bookingIds()
@@ -232,6 +236,41 @@ describe('members dashboard', () => {
     expect(now.weekLabel).toBe(currentLabel)
     expect(now.members.every((m: { week: unknown }) => m.week === null)).toBe(true)
     expect(now.attendance).toEqual({ present: 0, absent: 0 })
+  })
+
+  it('adds each phone/email for admins only, audited and never cached', async () => {
+    await book()
+    await book({ zaloName: 'Hoa', contact: ' Hoa@Example.com ' })
+
+    const anonymous = await ctx.app.inject({ method: 'GET', url: '/api/v1/admin/members' })
+    expect(anonymous.statusCode).toBe(401)
+    expect(anonymous.body).not.toContain('0912345678')
+
+    const res = await adminGet('/members')
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['cache-control']).toBe('no-store')
+    const body = res.json() as { weekLabel: string; members: { zaloName: string; contact: string }[] }
+    expect(Object.fromEntries(body.members.map((m) => [m.zaloName, m.contact]))).toEqual({
+      'Minh Anh': '0912345678',
+      Hoa: 'hoa@example.com',
+    })
+
+    // The access is logged (who, which week, how many), never the phone numbers themselves.
+    const logs = await ctx.database.db.select().from(auditLogs)
+    expect(logs.find((l) => l.action === 'admin.members_with_contact')).toMatchObject({
+      actorId: 'token',
+      weekLabel: body.weekLabel,
+      detail: { rows: 2 },
+    })
+    expect(JSON.stringify(logs)).not.toContain('0912345678')
+
+    // The public list stays without contacts.
+    const pub = await ctx.app.inject({ method: 'GET', url: '/api/v1/members' })
+    expect(pub.body).not.toContain('0912345678')
+    expect(pub.body).not.toMatch(/contact/i)
+
+    const tooLong = await adminGet(`/members?week=${'x'.repeat(51)}`)
+    expect(tooLong.statusCode).toBe(400)
   })
 
   it('rejects unknown or malformed weeks', async () => {

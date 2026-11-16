@@ -7,7 +7,7 @@ import type {
   WeekResponse,
   WeekSummary,
 } from '@/types/admin'
-import type { ScheduleConfig } from '@/types/booking'
+import type { MemberList, ScheduleConfig } from '@/types/booking'
 import { request } from './api'
 
 /** "?a=1&b=2" from the defined values, or "". */
@@ -33,6 +33,9 @@ export const adminApi = {
     request<{ deleted: true; config: ScheduleConfig }>(`/admin/bookings/${id}`, {
       method: 'DELETE',
     }),
+
+  /** The members dashboard of a week (default: current) with each phone/email; audited. */
+  listMembers: (week?: string) => request<MemberList>(`/admin/members${query({ week })}`),
 
   /** Attendance marks of a week (default: the current week). */
   listAttendance: (week?: string) => request<AttendanceList>(`/admin/attendance${query({ week })}`),

@@ -31,6 +31,45 @@ describe('PostgreSQL TLS options', () => {
   })
 })
 
+describe('client IP behind a proxy (rate limits)', () => {
+  /**
+   * 11 contact lookups (limit: 10 per 10 minutes) from one client behind one proxy, each
+   * claiming another IP in a forged first X-Forwarded-For entry. Returns the status codes.
+   */
+  async function forgedLookups(trustProxy: string) {
+    const ctx = await createTestApp({ TRUST_PROXY: trustProxy })
+    const codes: number[] = []
+    for (let i = 1; i <= 11; i++) {
+      const res = await ctx.app.inject({
+        method: 'POST',
+        url: '/api/v1/bookings/lookup',
+        payload: { contact: '0900000000' },
+        remoteAddress: '10.0.0.1', // the proxy
+        // The proxy appended the address it saw (198.51.100.7) to what the client sent.
+        headers: { 'x-forwarded-for': `203.0.113.${i}, 198.51.100.7` },
+      })
+      codes.push(res.statusCode)
+    }
+    await ctx.close()
+    return codes
+  }
+
+  it('with a number of proxies, a forged X-Forwarded-For entry does not escape the limit', async () => {
+    expect(await forgedLookups('1')).toContain(429)
+  })
+
+  it('with true, the first entry wins: only for proxies that replace the header', async () => {
+    expect(await forgedLookups('true')).not.toContain(429)
+  })
+
+  it('accepts true, false or a number only', () => {
+    expect(testConfig({ TRUST_PROXY: '2' }).TRUST_PROXY).toBe(2)
+    expect(testConfig({ TRUST_PROXY: 'true' }).TRUST_PROXY).toBe(true)
+    expect(testConfig().TRUST_PROXY).toBe(false)
+    expect(() => testConfig({ TRUST_PROXY: 'yes' })).toThrow(/TRUST_PROXY/)
+  })
+})
+
 describe('Supabase lockdown migration', () => {
   it('enables row level security on every table', async () => {
     const ctx = await createTestApp()

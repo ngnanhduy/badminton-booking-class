@@ -5,10 +5,16 @@
  * Migrations run during the Vercel build (scripts/vercel-build.sh), not here:
  * set DATABASE_MIGRATE_ON_START=false in the Vercel project.
  */
+import { createHash, timingSafeEqual } from 'node:crypto'
+
 import { buildApp } from '../backend/dist/app.js'
 import { loadConfig } from '../backend/dist/config/env.js'
 import { purgeExpiredSessions } from '../backend/dist/modules/auth/auth.service.js'
 import { purgeExpiredBookings } from '../backend/dist/modules/bookings/booking.service.js'
+
+// Rate limits are per client IP. Vercel replaces X-Forwarded-For with the real client IP (so
+// it can't be faked); without trusting it, every visitor would share one limit.
+process.env.TRUST_PROXY ||= 'true'
 
 /** One Fastify instance per warm function instance, created on the first request. */
 let appPromise
@@ -32,10 +38,16 @@ function getApp() {
   return appPromise
 }
 
+/** `Authorization: Bearer <CRON_SECRET>`, compared in constant time. */
+function isCronRequest(header, secret) {
+  if (!secret || typeof header !== 'string') return false
+  const digest = (value) => createHash('sha256').update(value).digest()
+  return timingSafeEqual(digest(header), digest(`Bearer ${secret}`))
+}
+
 /** Daily retention job, called by Vercel Cron (see `crons` in vercel.json). */
 async function runRetention(app, req, res) {
-  const secret = process.env.CRON_SECRET
-  if (!secret || req.headers.authorization !== `Bearer ${secret}`) {
+  if (!isCronRequest(req.headers.authorization, process.env.CRON_SECRET)) {
     res.statusCode = 401
     return res.end()
   }

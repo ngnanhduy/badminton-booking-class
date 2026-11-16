@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 
 import type { BookingApi } from '@/services/api'
 import { createMockApi } from '@/services/mockApi'
+import type { PastSchedule } from '@/types/booking'
 import { useBookingStore } from '../booking'
 import { useScheduleStore } from '../schedule'
 
@@ -18,6 +19,7 @@ vi.mock('@/services/api', async (importOriginal) => {
       getSchedule: () => backend.current!.getSchedule(),
       submitBooking: (payload) => backend.current!.submitBooking(payload),
       lookupBooking: (contact) => backend.current!.lookupBooking(contact),
+      bookingHistory: (contact) => backend.current!.bookingHistory(contact),
       deleteBooking: (contact) => backend.current!.deleteBooking(contact),
       listMembers: (week) => backend.current!.listMembers(week),
       checkIn: (contact) => backend.current!.checkIn(contact),
@@ -44,11 +46,36 @@ async function fillOneSession(
   booking.toggleSlot(0, slot)
 }
 
+/** Days of the demo week (9/11 - 15/11/2026), at 8:00. Only Date is faked: timers stay real. */
+const demoDay = (day: number) => new Date(2026, 10, day, 8)
+
 describe('booking store', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(demoDay(9)) // Monday: the whole week can be booked
     localStorage.clear()
     backend.current = createMockApi(0)
     setActivePinia(createPinia())
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("won't book Monday on Tuesday, but keeps a Monday session already booked", async () => {
+    vi.setSystemTime(demoDay(10)) // Tuesday
+    const { booking } = await setup()
+    await fillOneSession(booking)
+    expect(booking.errors.slot0).toContain('thuộc ngày đã qua')
+    expect(await booking.submit()).toBe(false)
+
+    // Booked on Monday, changed on Tuesday: the Monday session may stay.
+    booking.loadBooking(
+      { zaloName: 'Minh Anh', count: 1, slots: ['Thứ 2 18h - 20h'], makeup: '', weekLabel: '' },
+      '0912 345 678',
+    )
+    expect(booking.errors.slot0).toBeUndefined()
+    booking.reset()
+    expect(booking.savedSlots).toEqual([])
   })
 
   it('advances to the next empty session after picking a slot', async () => {
@@ -195,5 +222,86 @@ describe('booking store', () => {
 
     expect(await booking.submit()).toBe(false)
     expect(booking.submitError).toContain('đã đủ người')
+  })
+})
+
+describe('schedules from earlier weeks', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(demoDay(9))
+    localStorage.clear()
+    backend.current = createMockApi(0)
+    setActivePinia(createPinia())
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('suggests them for a returning contact and fills the form with the one picked', async () => {
+    const { booking } = await setup()
+    booking.form.contact = '0901 234 567' // DEMO_RETURNING_CONTACT
+    await booking.loadHistory()
+    expect(booking.suggestions.map((s) => s.weekLabel)).toEqual(['2/11 - 8/11', '26/10 - 1/11'])
+    const [lastWeek, older] = booking.suggestions as [PastSchedule, PastSchedule]
+
+    booking.applyPastSchedule(lastWeek)
+    await nextTick()
+    expect(booking.form.count).toBe(2)
+    expect(booking.form.slots).toEqual(['Thứ 2 18h - 20h', 'Thứ 5 18h - 20h', ''])
+    expect(booking.isApplied(lastWeek)).toBe(true)
+    // Only the name and consent are left to fill in.
+    expect(Object.keys(booking.errors).sort()).toEqual(['consent', 'zaloName'])
+
+    // "Thứ 4 20h - 22h" is full this week: that session is left for the student to pick.
+    booking.applyPastSchedule(older)
+    await nextTick()
+    expect(booking.form.slots).toEqual(['Thứ 3 18h - 20h', '', ''])
+    expect(booking.activeSession).toBe(1)
+    expect(booking.isApplied(lastWeek)).toBe(false)
+    booking.toggleSlot(1, 'Thứ 5 18h - 20h')
+    expect(booking.isApplied(older)).toBe(true)
+
+    // Changing a suggested slot by hand means the form no longer holds that schedule.
+    booking.toggleSlot(0, 'Thứ 2 20h - 22h')
+    expect(booking.isApplied(older)).toBe(false)
+  })
+
+  it('shows them only for the contact typed, until dismissed or reset', async () => {
+    const { booking } = await setup()
+    booking.form.contact = '0912 345 678'
+    await booking.loadHistory()
+    expect(booking.suggestions).toEqual([])
+
+    booking.form.contact = '+84 901 234 567'
+    await booking.loadHistory()
+    expect(booking.suggestions).toHaveLength(2)
+    booking.form.contact = '0901 234 56'
+    expect(booking.suggestions).toEqual([])
+    booking.form.contact = '0901234567'
+    expect(booking.suggestions).toHaveLength(2)
+
+    booking.dismissHistory()
+    expect(booking.suggestions).toEqual([])
+    booking.reset()
+    booking.form.contact = '0901234567'
+    await booking.loadHistory()
+    expect(booking.suggestions).toHaveLength(2)
+
+    // Not offered while changing this week's booking.
+    booking.loadBooking(
+      { zaloName: 'Lan', count: 1, slots: ['Thứ 2 18h - 20h'], makeup: '', weekLabel: '' },
+      '0901234567',
+    )
+    expect(booking.suggestions).toEqual([])
+  })
+
+  it('ignores an answer for a contact that was changed while waiting', async () => {
+    const { booking } = await setup()
+    booking.form.contact = '0901234567'
+    const pending = booking.loadHistory()
+    booking.form.contact = '0912345678'
+    await pending
+    booking.form.contact = '0901234567'
+    expect(booking.suggestions).toEqual([])
   })
 })

@@ -2,7 +2,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 
 import { auditLogs, bookings } from '../src/db/schema.js'
-import { createTestApp, seededWeekLabel, validBooking } from './helpers.js'
+import { addDays, localTime, mondayOf } from '../src/lib/time.js'
+import { ADMIN_TOKEN, createTestApp, seededWeekLabel, seededWeekStart, validBooking } from './helpers.js'
 
 let ctx: Awaited<ReturnType<typeof createTestApp>>
 
@@ -127,6 +128,48 @@ describe('POST /bookings', () => {
   })
 })
 
+describe('days that are over', () => {
+  let past: Awaited<ReturnType<typeof createTestApp>>
+  let clock = seededWeekStart()
+  const MON = 'Thứ 2 18h - 20h'
+  const TUE = 'Thứ 3 18h - 20h'
+  const WED = 'Thứ 4 18h - 20h'
+  /** `hours` after the start of the seeded week (Monday 00:00, Vietnam time). */
+  const at = (hours: number) => new Date(seededWeekStart().getTime() + hours * 3600_000)
+  const book = (overrides: Record<string, unknown>) =>
+    past.app.inject({ method: 'POST', url: '/api/v1/bookings', payload: validBooking(overrides) })
+
+  beforeAll(async () => {
+    past = await createTestApp({}, { now: () => clock })
+  })
+  afterAll(() => past.close())
+
+  it("refuses Monday's slots on Tuesday but accepts the rest of the week", async () => {
+    clock = at(24 + 9) // Tuesday 9:00
+    const res = await book({ slots: [MON] })
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toMatchObject({ code: 'SLOT_PAST', params: { slot: MON } })
+    expect((await book({ count: 2, slots: [TUE, WED] })).statusCode).toBe(201) // today is still open
+    // Days follow the class time zone: Tuesday 1:00 in Vietnam is still Monday in UTC.
+    const lan = { zaloName: 'Lan', contact: 'lan@example.com', slots: [MON] }
+    clock = at(24 + 1)
+    expect((await book(lan)).json().error.code).toBe('SLOT_PAST')
+    clock = at(23) // Monday 23:00: the whole day stays open
+    expect((await book(lan)).statusCode).toBe(201)
+  })
+
+  it('lets a student keep a slot they already booked once its day is over', async () => {
+    await past.database.db.delete(bookings)
+    clock = at(9) // Monday
+    expect((await book({ slots: [MON] })).statusCode).toBe(201)
+    clock = at(24 + 9) // Tuesday
+    expect((await book({ count: 2, slots: [MON, WED] })).statusCode).toBe(200)
+    // Once dropped, it can't be picked again.
+    expect((await book({ slots: [WED] })).statusCode).toBe(200)
+    expect((await book({ count: 2, slots: [MON, WED] })).json().error.code).toBe('SLOT_PAST')
+  })
+})
+
 describe('lookup and delete (data subject rights)', () => {
   it('finds the booking by contact and returns decrypted data without the contact', async () => {
     await post('/bookings', validBooking({ count: 2, slots: ['Thứ 2 18h - 20h', 'Thứ 3 14h - 16h'] }))
@@ -156,6 +199,74 @@ describe('lookup and delete (data subject rights)', () => {
     const logs = await ctx.database.db.select().from(auditLogs)
     expect(logs.map((l) => l.action)).toEqual(['booking.create', 'booking.delete'])
     expect(JSON.stringify(logs)).not.toMatch(/Minh|0912/)
+  })
+})
+
+describe('booking history (suggestions on the booking form)', () => {
+  let hist: Awaited<ReturnType<typeof createTestApp>>
+  const auth = { authorization: `Bearer ${ADMIN_TOKEN}` }
+  const MON = 'Thứ 2 18h - 20h'
+  const WED = 'Thứ 4 18h - 20h'
+  const FRI = 'Thứ 6 18h - 20h'
+  const inject = (method: 'GET' | 'POST' | 'PUT', url: string, payload?: object) =>
+    hist.app.inject({
+      method,
+      url: `/api/v1${url}`,
+      headers: url.startsWith('/admin') ? auth : undefined,
+      payload,
+    })
+  const book = (overrides: Record<string, unknown>) => inject('POST', '/bookings', validBooking(overrides))
+  const history = (contact: string) => inject('POST', '/bookings/history', { contact })
+
+  /** Closes the open week and opens a new one starting `days` after the seeded week. */
+  async function openNextWeek(weekLabel: string, days: number) {
+    const all = (await inject('GET', '/admin/weeks')).json().weeks as { id: string; open: boolean }[]
+    const open = all.find((w) => w.open)!
+    expect((await inject('PUT', `/admin/weeks/${open.id}`, { open: false })).statusCode).toBe(200)
+    const startDate = addDays(mondayOf(localTime(seededWeekStart(), 'Asia/Ho_Chi_Minh').date), days)
+    const created = await inject('POST', '/admin/weeks', { weekLabel, startDate, open: true })
+    expect(created.statusCode).toBe(201)
+  }
+
+  beforeAll(async () => {
+    hist = await createTestApp()
+  })
+  afterAll(() => hist.close())
+
+  it('returns earlier schedules newest first, once each, with no personal data', async () => {
+    expect((await history('0912345678')).json()).toEqual({ history: [] })
+    await book({ count: 2, slots: [MON, WED] })
+    // This week's own booking is not history.
+    expect((await history('0912345678')).json()).toEqual({ history: [] })
+
+    await openNextWeek('Tuần 2', 7)
+    await book({ count: 2, slots: [WED, MON] }) // same times in another order
+    await openNextWeek('Tuần 3', 14)
+    await book({ slots: [FRI] })
+    await book({ zaloName: 'Hoa', contact: 'hoa@example.com', slots: [MON] })
+    await openNextWeek('Tuần 4', 21)
+    await book({ slots: [MON] })
+
+    const res = await history('+84 912 345 678')
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({
+      history: [
+        { weekLabel: 'Tuần 3', count: 1, slots: [FRI] },
+        { weekLabel: 'Tuần 2', count: 2, slots: [WED, MON] },
+      ],
+    })
+    expect(res.body).not.toMatch(/Minh|Hoa|0912/)
+
+    const logs = await hist.database.db.select().from(auditLogs)
+    const viewed = logs.filter((l) => l.action === 'booking.history')
+    expect(viewed).toHaveLength(1)
+    expect(viewed[0]).toMatchObject({ actor: 'student', detail: { weeks: 2 } })
+  })
+
+  it('rejects an invalid contact', async () => {
+    const res = await history('123')
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error.code).toBe('INVALID_CONTACT')
   })
 })
 

@@ -3,7 +3,7 @@ import { count, eq } from 'drizzle-orm'
 import { attendance, bookings, weeks, type BookingRow } from '../../db/schema.js'
 import { notFound } from '../../lib/errors.js'
 import type { AppDeps } from '../../types.js'
-import { decryptName } from '../bookings/booking.service.js'
+import { decryptContact, decryptName } from '../bookings/booking.service.js'
 import {
   getCurrentWeek,
   newestFirst,
@@ -12,12 +12,17 @@ import {
 } from '../weeks/weeks.service.js'
 
 /**
- * One student across every week still kept (within the retention period). This is shown
- * publicly, so it deliberately has no phone/email, notes or ids: only what members need.
+ * One student across every week still kept (within the retention period). The public list
+ * deliberately has no phone/email, notes or ids: only what members need.
  */
 export interface MemberView {
   /** Zalo name from the most recent booking. */
   zaloName: string
+  /**
+   * Phone or email (normalized). Only in the admin list (GET /admin/members, audited);
+   * the public list never has it.
+   */
+  contact?: string
   /** Number of weeks booked. */
   weeks: number
   /** Sessions booked in total. */
@@ -81,11 +86,20 @@ async function listMemberWeeks(deps: AppDeps, currentLabel: string): Promise<Mem
   }))
 }
 
+export interface ListMembersOptions {
+  /** Also decrypt each student's phone/email. Admin use only (the caller audits it). */
+  withContact?: boolean
+}
+
 /**
  * Groups every booking by student (same phone/email, via its blind index). `week` picks the
  * week whose bookings are shown per member (default: the current week).
  */
-export async function listMembers(deps: AppDeps, week?: string): Promise<MemberList> {
+export async function listMembers(
+  deps: AppDeps,
+  week?: string,
+  { withContact = false }: ListMembersOptions = {},
+): Promise<MemberList> {
   const { db, keyring } = deps
   const currentLabel = (await getCurrentWeek(db)).label
   let weekLabel = currentLabel
@@ -134,8 +148,10 @@ export async function listMembers(deps: AppDeps, week?: string): Promise<MemberL
       absent += tally?.absent ?? 0
     }
     return {
-      // Only the name is decrypted; the contact column is never read here.
+      // Only the name is decrypted; the contact column is read only for the admin list.
+      // Every booking of a group has the same contact (that's how they are grouped).
       zaloName: decryptName(keyring, latest),
+      ...(withContact && { contact: decryptContact(keyring, latest) }),
       weeks: group.length,
       sessions: group.reduce((sum, r) => sum + r.sessionCount, 0),
       week: chosen ? { count: chosen.sessionCount, slots: slotsOf(chosen) } : null,

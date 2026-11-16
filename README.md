@@ -79,7 +79,7 @@ UI-only work, with no backend: set `VITE_DEMO=true` in `frontend/.env.local`.
 | Who | Gets |
 | --- | --- |
 | Students (no account) | Book, look up, change or delete their own booking; check in to today's class at `/diem-danh` |
-| **Admin** (`admin`) | Admin page `/quan-tri`: bookings of any week with contacts, CSV export, deleting bookings, attendance, weeks (create, open/close registration, history), per-week settings (slots, capacity, opening time), admin accounts (add, reset password, delete) |
+| **Admin** (`admin`) | Admin page `/quan-tri`: bookings of any week with contacts, CSV export, deleting bookings, attendance, weeks (create, open/close registration, history), per-week settings (slots, capacity, opening time), admin accounts (add, reset password, delete). On the members page `/hoc-vien`: **Hiện SĐT / email** shows each student's phone or email (each view is audited) |
 
 Permissions are checked by the API on every request; the Vue route guards only decide what to
 show. To protect a new admin-only API route, call `requireRole(request, ['admin'])` (or register
@@ -152,6 +152,7 @@ Bookings are grouped by week, so per-slot counts start again from zero.
 | `GET /schedule`          | –                                                            | Week, rules, slots, per-slot counts, privacy info |
 | `POST /bookings`         | `{ zaloName, contact, count, slots, makeup, consent: true }` | Create (201) or update (200) this week's booking |
 | `POST /bookings/lookup`  | `{ contact }`                                                | The student's booking (name and sessions, never the contact) |
+| `POST /bookings/history` | `{ contact }`                                                | `{ history }`: up to 3 distinct schedules (`weekLabel`, `count`, `slots`) from earlier weeks, newest first, for the booking form to suggest. Slots only: no name, notes or contact |
 | `POST /bookings/delete`  | `{ contact }`                                                | Delete the booking and its personal data |
 | `POST /checkin`          | `{ contact }`                                                | Self check-in for a class booked today, from `CHECKIN_EARLY_MINUTES` before it starts until it ends (`CLASS_TIMEZONE`) |
 | `GET /health`            | –                                                            | Health check                             |
@@ -168,6 +169,8 @@ The phone or email always travels in a POST body, never in the URL. Errors retur
 `Authorization: Bearer <ADMIN_TOKEN>` for scripts. Anonymous requests get 401, other roles 403.
 
 - `GET /bookings?week=&includeContact=true`: decrypted bookings
+- `GET /members?week=`: the members dashboard (as the public `GET /members`) with each student's
+  phone or email in `contact`
 - `DELETE /bookings/:id`
 - `GET /weeks`: every week (history included) with its settings and counts
 - `POST /weeks` with body `{ weekLabel, startDate?, open?, opensAt?, closesAt?, … }`: create a week; `open: true` fails with `WEEK_ALREADY_OPEN` while another week is open
@@ -181,7 +184,8 @@ The phone or email always travels in a POST body, never in the URL. Errors retur
 - `GET /audit-logs`: the processing log
 - `POST /retention/purge`
 
-Every admin read of personal data is written to the audit log.
+Every admin read of personal data is written to the audit log, and admin answers are sent with
+`Cache-Control: no-store`.
 
 ## Docker and deployment
 

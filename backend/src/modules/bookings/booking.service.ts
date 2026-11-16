@@ -5,11 +5,12 @@ import { attendance, bookings, weeks, type BookingRow } from '../../db/schema.js
 import { normalizeContact, normalizeName } from '../../lib/contact.js'
 import { blindIndex, decrypt, encrypt, type Keyring } from '../../lib/crypto.js'
 import { badRequest, conflict, notFound } from '../../lib/errors.js'
-import { dayLabel, findSameDay } from '../../lib/slots.js'
+import { dayLabel, findSameDay, slotDate } from '../../lib/slots.js'
+import { localTime, startDateFromLabel } from '../../lib/time.js'
 import type { AppDeps } from '../../types.js'
 import { audit, type AuditActor } from '../audit/audit.service.js'
 import { countSlots } from '../schedule/schedule.service.js'
-import { getCurrentWeek, registrationStatus } from '../weeks/weeks.service.js'
+import { getCurrentWeek, newestFirst, registrationStatus } from '../weeks/weeks.service.js'
 import type { SubmitBookingInput } from './booking.schemas.js'
 
 /** Decrypted view of a booking. Only ever returned to the verified student or an admin. */
@@ -118,6 +119,21 @@ export async function submitBooking(deps: AppDeps, input: SubmitBookingInput) {
       .from(bookings)
       .where(and(eq(bookings.weekLabel, s.weekLabel), eq(bookings.contactHash, contactHash)))
 
+    // A day that is over can't be booked any more (on Tuesday, Monday's slots are closed).
+    // Slots the student already holds may stay, so they can still change the rest of the week.
+    const today = localTime(deps.now(), config.CLASS_TIMEZONE).date
+    const startDate = week.startDate ?? startDateFromLabel(week.label, today)
+    if (startDate) {
+      const kept = existing ? [existing.slot1, existing.slot2, existing.slot3] : []
+      const past = slots.find((slot) => {
+        const date = slotDate(startDate, slot)
+        return date !== null && date < today && !kept.includes(slot)
+      })
+      if (past) {
+        throw badRequest('SLOT_PAST', `Ca "${past}" thuộc ngày đã qua. Vui lòng chọn ca khác.`, { slot: past })
+      }
+    }
+
     const [nameTaken] = await tx
       .select({ id: bookings.id })
       .from(bookings)
@@ -204,6 +220,59 @@ export async function lookupBooking(deps: AppDeps, rawContact: string) {
     makeup: view.makeup,
     weekLabel: view.weekLabel,
   }
+}
+
+/** A schedule the student booked in an earlier week, offered again on the booking form. */
+export interface PastSchedule {
+  weekLabel: string
+  count: 1 | 2 | 3
+  slots: string[]
+}
+
+/** Past weeks scanned for suggestions, and how many different schedules are returned. */
+const HISTORY_SCAN = 12
+const HISTORY_MAX = 3
+
+/**
+ * The student's schedules from earlier weeks (newest first, one per distinct set of slots),
+ * so the booking form can offer to book the same times again. Only slot labels are returned
+ * (no name, notes or contact), and nothing is decrypted.
+ */
+export async function bookingHistory(deps: AppDeps, rawContact: string): Promise<PastSchedule[]> {
+  const { db, keyring } = deps
+  const hash = contactIndex(keyring, rawContact)
+  const current = (await getCurrentWeek(db)).label
+  const rows = await db
+    .select({
+      weekLabel: bookings.weekLabel,
+      count: bookings.sessionCount,
+      slot1: bookings.slot1,
+      slot2: bookings.slot2,
+      slot3: bookings.slot3,
+    })
+    .from(bookings)
+    .innerJoin(weeks, eq(weeks.label, bookings.weekLabel))
+    .where(and(eq(bookings.contactHash, hash), ne(bookings.weekLabel, current)))
+    .orderBy(...newestFirst)
+    .limit(HISTORY_SCAN)
+
+  const seen = new Set<string>()
+  const history: PastSchedule[] = []
+  for (const row of rows) {
+    const count = row.count as 1 | 2 | 3
+    const slots = [row.slot1, row.slot2, row.slot3].slice(0, count).map((s) => s ?? '')
+    // The same times in another order are the same schedule.
+    const key = [...slots].sort().join('\n')
+    if (seen.has(key)) continue
+    seen.add(key)
+    history.push({ weekLabel: row.weekLabel, count, slots })
+    if (history.length === HISTORY_MAX) break
+  }
+
+  if (history.length) {
+    await audit(db, { actor: 'student', action: 'booking.history', detail: { weeks: history.length } })
+  }
+  return history
 }
 
 /** Deletes this week's booking for a contact (right to withdraw consent / erasure). */

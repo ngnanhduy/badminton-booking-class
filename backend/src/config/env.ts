@@ -60,10 +60,20 @@ const EnvSchema = z.object({
     .refine(isValidTimeZone, 'CLASS_TIMEZONE must be an IANA time zone, e.g. Asia/Ho_Chi_Minh'),
   /** Self check-in opens this many minutes before a class starts (and closes when it ends). */
   CHECKIN_EARLY_MINUTES: z.coerce.number().int().min(0).max(240).default(30),
+  /**
+   * Where the client IP (used by the rate limits) comes from behind a reverse proxy:
+   *   false  = the connection itself (no proxy);
+   *   number = the number of proxies in front of the app: X-Forwarded-For is read from the
+   *            right, so entries a client adds itself are ignored;
+   *   true   = the first X-Forwarded-For entry. Only safe where the platform replaces the
+   *            header (Vercel does). Where a proxy appends to it, clients can fake their IP.
+   */
   TRUST_PROXY: z
-    .enum(['true', 'false'])
+    .string()
+    .trim()
+    .regex(/^(true|false|\d{1,2})$/, 'TRUST_PROXY must be true, false or a number of proxies (e.g. 1)')
     .default('false')
-    .transform((v) => v === 'true'),
+    .transform((v) => (v === 'true' ? true : v === 'false' ? false : Number(v))),
 
   // --- Admin sign-in (email + password) ---
   /**

@@ -12,9 +12,16 @@ const headers = { authorization: `Bearer ${ADMIN_TOKEN}` }
 const vn = (isoLocal: string) => new Date(`${isoLocal}+07:00`)
 
 beforeAll(async () => {
-  ctx = await createTestApp()
-  // Close the seeded week and open the week of 16/11/2026 with dated slots.
-  await ctx.app.inject({ method: 'PUT', url: '/api/v1/admin/settings', headers, payload: { open: false } })
+  // Book at the start of that week, so Monday's slot is still open.
+  ctx = await createTestApp({}, { now: () => vn('2026-11-16T00:00') })
+  // Close the seeded week and open the week of 16/11/2026 with dated slots. The seeded week is
+  // renamed too: when the tests run during that very week, it has the same label.
+  await ctx.app.inject({
+    method: 'PUT',
+    url: '/api/v1/admin/settings',
+    headers,
+    payload: { open: false, weekLabel: 'Tuần ban đầu' },
+  })
   const week = await ctx.app.inject({
     method: 'POST',
     url: '/api/v1/admin/weeks',

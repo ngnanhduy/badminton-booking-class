@@ -9,6 +9,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Eye,
+  EyeOff,
+  FileSpreadsheet,
   LockKeyhole,
   RefreshCw,
   Search,
@@ -24,16 +27,22 @@ import BaseSelect from '@/components/ui/BaseSelect.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { dayName, slotShort, timeRange } from '@/i18n/format'
 
+import { adminApi } from '@/services/admin'
 import { api, ApiError, errorMessage } from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
 import type { Member, MemberWeek, Slot } from '@/types/booking'
 import type { SelectOption } from '@/types/ui'
-import { attendanceRate, formatPercent } from '@/utils/members'
+import { attendanceRate, formatPercent, membersFileName, membersSheet } from '@/utils/members'
 import { mergeSlots } from '@/utils/slots'
 import { dayMonth, dayTiming, weekDayDate, type DayTiming } from '@/utils/week'
+import { downloadXlsx } from '@/utils/xlsx'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+// Only shows the admin buttons (phone/email, Excel export); the list itself is public and the
+// server checks the role. (The header's user menu loads the session.)
+const auth = useAuthStore()
 
 const members = ref<Member[]>([])
 const weeks = ref<MemberWeek[]>([])
@@ -43,6 +52,11 @@ const weekAttendance = ref({ present: 0, absent: 0 })
 const loading = ref(false)
 const error = ref('')
 const query = ref('')
+/**
+ * Admins only: load the list from the admin API, with each student's phone/email (every load
+ * is audited). Off on each visit, and turned off when the visitor is no longer an admin.
+ */
+const showContacts = ref(false)
 
 type SortKey = 'name' | 'attendance'
 const sortBy = ref<SortKey>('name')
@@ -113,15 +127,25 @@ const shownWeek = computed(
 
 // ── Data ────────────────────────────────────────────────────────────────────────────────
 
+function withoutContact(member: Member): Member {
+  const copy = { ...member }
+  delete copy.contact
+  return copy
+}
+
 let latestRequest = 0
 async function load() {
   const request = ++latestRequest
+  const withContacts = showContacts.value
   loading.value = true
   error.value = ''
   try {
-    const data = await api.listMembers(selectedWeek.value)
+    const data = withContacts
+      ? await adminApi.listMembers(selectedWeek.value)
+      : await api.listMembers(selectedWeek.value)
     if (request !== latestRequest) return // a newer week was picked meanwhile
-    members.value = data.members
+    // Hidden again (or signed out) while this was loading: don't keep them.
+    members.value = showContacts.value ? data.members : data.members.map(withoutContact)
     weeks.value = data.weeks
     weekLabel.value = data.weekLabel
     weekAttendance.value = data.attendance
@@ -132,12 +156,31 @@ async function load() {
       selectWeek(undefined)
       return
     }
+    // E.g. the session expired: go back to the public list on the next load.
+    if (withContacts) showContacts.value = false
     error.value = errorMessage(e, t('members.loadFailed'))
   } finally {
     if (request === latestRequest) loading.value = false
   }
 }
 watch(selectedWeek, load, { immediate: true })
+
+function toggleContacts() {
+  showContacts.value = !showContacts.value
+  load()
+}
+
+// Hiding them also forgets them, so nothing stays in the page's memory.
+watch(showContacts, (shown) => {
+  if (!shown) members.value = members.value.map(withoutContact)
+})
+// Signed out, or another account without the admin role: hide them.
+watch(
+  () => auth.isAdmin,
+  (admin) => {
+    if (!admin) showContacts.value = false
+  },
+)
 
 const bookedCount = computed(() => members.value.filter((m) => m.week).length)
 
@@ -237,8 +280,17 @@ watch([days, notBooked], () => {
 })
 
 const search = computed(() => query.value.trim().toLocaleLowerCase('vi'))
-const matches = (m: Member) =>
-  !search.value || m.zaloName.toLocaleLowerCase('vi').includes(search.value)
+/** By name, or by phone/email when shown ("0912 345" finds 0912345678). */
+function matches(m: Member) {
+  const q = search.value
+  if (!q || m.zaloName.toLocaleLowerCase('vi').includes(q)) return true
+  if (!m.contact) return false
+  const compact = q.replace(/[\s.()-]/g, '')
+  return m.contact.includes(q) || (!!compact && m.contact.includes(compact))
+}
+const searchLabel = computed(() =>
+  showContacts.value ? t('members.searchWithContact') : t('members.search'),
+)
 
 const byName = (a: Member, b: Member) => a.zaloName.localeCompare(b.zaloName, 'vi')
 const compare = (a: Member, b: Member) =>
@@ -304,6 +356,14 @@ const chips = computed(() => [
     : []),
 ])
 
+/** The loaded week as a spreadsheet: everyone, whatever the search or day filter, in the chosen order. */
+function exportExcel() {
+  downloadXlsx(
+    membersSheet(members.value, shownWeek.value, compare),
+    membersFileName(weekLabel.value),
+  )
+}
+
 const stepButton =
   'grid size-10 shrink-0 place-items-center rounded-xl bg-white text-zinc-600 ring-1 ring-zinc-950/10 transition hover:text-zinc-900 hover:ring-zinc-950/20 disabled:pointer-events-none disabled:opacity-40 dark:bg-zinc-950/40 dark:text-zinc-300 dark:ring-white/10 dark:hover:text-white dark:hover:ring-white/20'
 
@@ -356,6 +416,30 @@ const memberKey = (m: Member) => `${m.zaloName}|${m.firstBookedAt}`
       >
         {{ t('members.backToCurrent') }}
       </BaseButton>
+      <!-- Admins only (the server refuses everyone else). -->
+      <div v-if="auth.isAdmin" class="ml-auto flex flex-wrap gap-2">
+        <BaseButton
+          variant="secondary"
+          size="sm"
+          :icon="showContacts ? EyeOff : Eye"
+          :disabled="loading"
+          :aria-pressed="showContacts"
+          :title="t('members.contactsTitle')"
+          @click="toggleContacts"
+        >
+          {{ showContacts ? t('members.hideContacts') : t('members.showContacts') }}
+        </BaseButton>
+        <BaseButton
+          variant="secondary"
+          size="sm"
+          :icon="FileSpreadsheet"
+          :disabled="loading || !members.length"
+          :title="t('members.exportTitle')"
+          @click="exportExcel"
+        >
+          {{ t('members.exportExcel') }}
+        </BaseButton>
+      </div>
     </div>
 
     <dl class="grid grid-cols-3 gap-2 sm:gap-3">
@@ -381,8 +465,8 @@ const memberKey = (m: Member) => `${m.zaloName}|${m.firstBookedAt}`
             <input
               v-model="query"
               type="search"
-              :placeholder="t('members.search')"
-              :aria-label="t('members.search')"
+              :placeholder="searchLabel"
+              :aria-label="searchLabel"
               class="block h-10 w-full rounded-xl bg-white pr-3 pl-9 text-sm ring-1 ring-zinc-950/10 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-950/40 dark:ring-white/10"
             />
           </div>
@@ -611,7 +695,13 @@ const memberKey = (m: Member) => `${m.zaloName}|${m.firstBookedAt}`
 
     <p class="flex items-start gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
       <LockKeyhole class="mt-px size-3.5 shrink-0" aria-hidden="true" />
-      {{ t('members.privacyNote', { n: members.length }, members.length) }}
+      {{
+        t(
+          auth.isAdmin ? 'members.privacyNoteAdmin' : 'members.privacyNote',
+          { n: members.length },
+          members.length,
+        )
+      }}
     </p>
   </div>
 </template>

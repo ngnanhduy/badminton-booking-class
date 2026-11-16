@@ -7,7 +7,8 @@ import { attendanceRate, formatPercent } from '@/utils/members'
 
 /**
  * One student on the members dashboard: name, attendance, and (default slot) details such as
- * their other sessions that week. Lays out on the grid of the dashboard's column header.
+ * their other sessions that week. Lays out on the grid of the dashboard's column header. The
+ * phone/email shows under the name when the member has one (admins who chose to show them).
  */
 const props = defineProps<{ member: Member }>()
 
@@ -65,7 +66,14 @@ const attendanceTitle = computed(() =>
       >
         {{ initials }}
       </span>
-      <span class="truncate font-semibold">{{ member.zaloName }}</span>
+      <div class="min-w-0">
+        <p class="truncate font-semibold">{{ member.zaloName }}</p>
+        <p v-if="member.contact" class="truncate text-xs text-zinc-600 dark:text-zinc-300">
+          <span class="sr-only">{{ t('common.contact') }}: </span>
+          <!-- One click selects the whole number or address, to copy it into Zalo. -->
+          <span class="font-mono select-all">{{ member.contact }}</span>
+        </p>
+      </div>
     </div>
 
     <!-- Attendance: next to the name on phones, last column from md. -->

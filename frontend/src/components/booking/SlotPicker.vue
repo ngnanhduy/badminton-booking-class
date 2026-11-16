@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 
 import { dayName } from '@/i18n/format'
-import type { DayGroup } from '@/types/booking'
+import type { DayGroup, Slot } from '@/types/booking'
 import SlotOption from './SlotOption.vue'
 
 const props = defineProps<{
@@ -15,6 +15,10 @@ const props = defineProps<{
   takenBy: Record<string, number>
   /** Weekday index → 1-based number of another session already on that day. */
   dayTakenBy?: Record<number, number>
+  /** Weekdays (0 = Monday) already over: their slots are shown but can't be picked. */
+  pastDays?: ReadonlySet<number>
+  /** Slots of the saved booking: still selectable on a past day (the student already has them). */
+  kept?: readonly string[]
   /** id of the session tab that controls this panel; omit when there are no tabs. */
   labelledBy?: string
 }>()
@@ -27,6 +31,9 @@ const smCols = computed(() => {
   const most = Math.max(2, ...props.days.map((day) => day.slots.length))
   return SM_COLS[Math.min(3, most)]
 })
+
+const isPastDay = (dayIndex: number) => !!props.pastDays?.has(dayIndex)
+const isPast = (slot: Slot) => isPastDay(slot.dayIndex) && !props.kept?.includes(slot.value)
 </script>
 
 <template>
@@ -45,7 +52,12 @@ const smCols = computed(() => {
       class="flex items-center gap-2.5 p-2 sm:gap-3 sm:p-2.5"
     >
       <span
-        class="w-8 shrink-0 text-center text-xs font-bold text-zinc-700 sm:w-18 sm:pl-1.5 sm:text-left sm:text-sm sm:font-semibold dark:text-zinc-200"
+        class="w-8 shrink-0 text-center text-xs font-bold sm:w-18 sm:pl-1.5 sm:text-left sm:text-sm sm:font-semibold"
+        :class="
+          isPastDay(day.dayIndex)
+            ? 'text-zinc-400 dark:text-zinc-600'
+            : 'text-zinc-700 dark:text-zinc-200'
+        "
         aria-hidden="true"
       >
         <span class="sm:hidden">{{ dayName(day, 'short') }}</span>
@@ -61,6 +73,7 @@ const smCols = computed(() => {
           :capacity="capacity"
           :taken-by="takenBy[slot.value] ?? 0"
           :same-day-as="dayTakenBy?.[slot.dayIndex] ?? 0"
+          :past="isPast(slot)"
           @select="emit('select', $event)"
         />
       </div>

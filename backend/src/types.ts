@@ -7,6 +7,8 @@ export interface AppDeps {
   db: Db
   keyring: Keyring
   config: AppConfig
+  /** Current time for date rules (e.g. no booking a day that is over); tests pin it. */
+  now: () => Date
 }
 
 declare module 'fastify' {

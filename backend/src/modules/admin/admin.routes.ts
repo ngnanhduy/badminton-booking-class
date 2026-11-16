@@ -10,6 +10,8 @@ import { requireAdmin, type AdminActor } from '../auth/auth.guard.js'
 import { NewPassword } from '../auth/auth.routes.js'
 import { createUser, deleteUser, isValidLoginId, listUsers, resetPassword } from '../auth/auth.service.js'
 import { decryptBooking, decryptContact, purgeExpiredBookings } from '../bookings/booking.service.js'
+import { MembersQuery } from '../members/members.routes.js'
+import { listMembers } from '../members/members.service.js'
 import { getSchedule } from '../schedule/schedule.service.js'
 import { createWeek, getCurrentWeek, listWeeks, toWeekDto, updateWeek } from '../weeks/weeks.service.js'
 
@@ -86,7 +88,9 @@ declare module 'fastify' {
  */
 export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.decorateRequest('admin', null as unknown as AdminActor)
-  app.addHook('onRequest', async (request) => {
+  app.addHook('onRequest', async (request, reply) => {
+    // Answers hold decrypted personal data: never keep them in browser or proxy caches.
+    reply.header('Cache-Control', 'no-store')
     request.admin = await requireAdmin(request)
   })
 
@@ -115,6 +119,22 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         ...(withContact ? { contact: decryptContact(app.deps.keyring, row) } : {}),
       })),
     }
+  })
+
+  /**
+   * The members dashboard (as GET /members) with each student's phone/email, for admins on
+   * the members page. Audited like the bookings list with contacts.
+   */
+  app.get('/members', async (request) => {
+    const { week } = MembersQuery.parse(request.query)
+    const list = await listMembers(app.deps, week, { withContact: true })
+    await audit(app.deps.db, {
+      ...by(request),
+      action: 'admin.members_with_contact',
+      weekLabel: list.weekLabel,
+      detail: { rows: list.members.length },
+    })
+    return list
   })
 
   app.delete<{ Params: { id: string } }>('/bookings/:id', async (request) => {

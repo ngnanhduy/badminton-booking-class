@@ -33,6 +33,13 @@ describe('SlotOption', () => {
     expect(wrapper.text()).toContain('Đã đủ người')
   })
 
+  it('is disabled when its day is over', () => {
+    const wrapper = render({ past: true })
+    expect(wrapper.get('button').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('Đã qua')
+    expect(wrapper.text()).not.toContain('còn 5 chỗ')
+  })
+
   it('is disabled when another session already uses it', () => {
     const wrapper = render({ takenBy: 2 })
     expect(wrapper.get('button').attributes('disabled')).toBeDefined()

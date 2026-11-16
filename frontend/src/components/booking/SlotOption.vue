@@ -19,8 +19,10 @@ const props = withDefaults(
     takenBy: number
     /** 1-based number of another session already on this slot's day, or 0. */
     sameDayAs?: number
+    /** The slot's day is already over this week, so it can't be picked. */
+    past?: boolean
   }>(),
-  { sameDayAs: 0 },
+  { sameDayAs: 0, past: false },
 )
 
 const emit = defineEmits<{ select: [value: string] }>()
@@ -29,7 +31,7 @@ const full = computed(() => props.capacity !== null && props.count >= props.capa
 const filling = computed(
   () => props.capacity !== null && !full.value && props.count / props.capacity >= 0.75,
 )
-const blocked = computed(() => props.takenBy > 0 || props.sameDayAs > 0)
+const blocked = computed(() => props.takenBy > 0 || props.sameDayAs > 0 || props.past)
 const disabled = computed(() => !props.selected && (full.value || blocked.value))
 
 /** Status line. `short` fits a narrow chip; `full` (when set) is read by screen readers. */
@@ -40,6 +42,7 @@ const meta = computed<{ short: string; full?: string }>(() => {
       full: t('slot.takenBy', { n: props.takenBy }),
     }
   }
+  if (props.past && !props.selected) return { short: t('slot.past'), full: t('slot.pastDay') }
   if (props.sameDayAs && !props.selected) {
     return { short: t('slot.sameDay'), full: t('slot.sameDayAs', { n: props.sameDayAs }) }
   }

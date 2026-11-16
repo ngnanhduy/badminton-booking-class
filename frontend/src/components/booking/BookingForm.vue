@@ -10,6 +10,7 @@ import { useScheduleStore } from '@/stores/schedule'
 import { parseSlot } from '@/utils/slots'
 import { MAX_MAKEUP_LENGTH, MAX_NAME_LENGTH } from '@/utils/validation'
 import FormStep from './FormStep.vue'
+import PastScheduleSuggestions from './PastScheduleSuggestions.vue'
 import SessionCountPicker from './SessionCountPicker.vue'
 import SessionTabs from './SessionTabs.vue'
 import SlotPicker from './SlotPicker.vue'
@@ -183,6 +184,8 @@ async function onSubmit() {
       <p v-else id="contact-hint" class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
         {{ booking.editing ? t('form.contactHintEditing') : t('form.contactHint') }}
       </p>
+
+      <PastScheduleSuggestions v-if="!booking.editing" />
     </FormStep>
 
     <!-- 2. Number of sessions -->
@@ -268,6 +271,8 @@ async function onSubmit() {
               :counts="schedule.config?.counts ?? {}"
               :taken-by="takenBy"
               :day-taken-by="dayTakenBy"
+              :past-days="schedule.pastDays"
+              :kept="booking.savedSlots"
               @select="booking.toggleSlot(booking.activeSession, $event)"
             />
           </Transition>

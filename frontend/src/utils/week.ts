@@ -125,3 +125,19 @@ export function dayTiming(date: Date, today = new Date()): DayTiming {
   const now = toDateInput(today)
   return day < now ? 'past' : day === now ? 'today' : 'upcoming'
 }
+
+/**
+ * Weekdays (0 = Monday) of a week that are already over, i.e. before `today`: on a Tuesday
+ * of that week, {0}. Empty when the week can't be dated.
+ */
+export function pastWeekdays(
+  week: { startDate: string | null; weekLabel: string },
+  today = new Date(),
+): Set<number> {
+  const past = new Set<number>()
+  for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+    const date = weekDayDate(week, dayIndex, today)
+    if (date && dayTiming(date, today) === 'past') past.add(dayIndex)
+  }
+  return past
+}

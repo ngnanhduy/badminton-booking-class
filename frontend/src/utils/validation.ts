@@ -16,6 +16,14 @@ export type BookingErrors = Partial<
   Record<'zaloName' | 'contact' | 'count' | 'slot0' | 'slot1' | 'slot2' | 'consent', string>
 >
 
+/** Date rules for the slots, from the schedule store. */
+export interface SlotRules {
+  /** Weekdays (0 = Monday) of the booking week that are over: their slots can't be picked. */
+  pastDays?: ReadonlySet<number>
+  /** Slots of the saved booking being changed: they may stay even once their day is over. */
+  kept?: readonly string[]
+}
+
 export const MAX_NAME_LENGTH = 100
 export const MAX_MAKEUP_LENGTH = 300
 
@@ -32,6 +40,7 @@ export function contactError(contact: string): string | undefined {
 export function validateBooking(
   draft: BookingDraft,
   config: Pick<ScheduleConfig, 'slots1' | 'slots2' | 'slots3'> | null,
+  { pastDays, kept = [] }: SlotRules = {},
 ): BookingErrors {
   const errors: BookingErrors = {}
   const name = draft.zaloName.trim()
@@ -63,6 +72,9 @@ export function validateBooking(
     if (!slot) errors[key] = t('validation.slotRequired', { n: i + 1 })
     else if (allowed && !allowed.includes(slot))
       errors[key] = t('validation.slotNotInSchedule', { slot, n: i + 1 })
+    // A day that is over can't be booked any more (e.g. Monday, on Tuesday).
+    else if (pastDays?.has(dayIndex) && !kept.includes(slot))
+      errors[key] = t('validation.slotPast', { slot })
     else if (seen.has(slot)) errors[key] = t('validation.slotDuplicate')
     // With 2+ sessions each must be on a different day (free-text slots can't be checked).
     else if (days.has(dayIndex))
