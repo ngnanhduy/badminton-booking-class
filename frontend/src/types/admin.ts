@@ -8,6 +8,9 @@ export interface AdminBooking {
   zaloName: string
   count: SessionCount
   slots: string[]
+  /** Make-up class slot, or '' for none. */
+  makeupSlot: string
+  /** Free-text note about the make-up class. */
   makeup: string
   consentVersion: string
   consentAt: string
@@ -39,6 +42,8 @@ export interface Week {
   slots1: string[]
   slots2: string[]
   slots3: string[]
+  /** Slots offered for a make-up class (empty = none that week). */
+  slotsMakeup: string[]
   capacity: number | null
   /** Registration switch. Only one week can be open at a time. */
   open: boolean
@@ -53,10 +58,11 @@ export interface WeekSummary extends Week {
   /** The week the public pages show (the open one, else the latest). */
   current: boolean
   bookings: number
+  /** Places taken: sessions plus make-up classes. */
   sessions: number
   present: number
   absent: number
-  /** Bookings per slot label. */
+  /** Bookings per slot label (make-up classes included). */
   counts: Record<string, number>
 }
 
@@ -76,6 +82,7 @@ export type WeekInput = Partial<
     | 'slots1'
     | 'slots2'
     | 'slots3'
+    | 'slotsMakeup'
     | 'capacity'
     | 'open'
     | 'opensAt'

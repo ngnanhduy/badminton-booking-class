@@ -7,8 +7,9 @@ import { attendanceRate, formatPercent } from '@/utils/members'
 
 /**
  * One student on the members dashboard: name, attendance, and (default slot) details such as
- * their other sessions that week. Lays out on the grid of the dashboard's column header. The
- * phone/email shows under the name when the member has one (admins who chose to show them).
+ * their week. From lg it lays out on the columns of the dashboard's header, which a parent sets
+ * as `--member-cols` (name, details, attendance). The phone/email shows under the name when the
+ * member has one (admins who chose to show them).
  */
 const props = defineProps<{ member: Member }>()
 
@@ -56,7 +57,7 @@ const attendanceTitle = computed(() =>
 
 <template>
   <li
-    class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 px-4 py-3 transition-colors hover:bg-zinc-50/80 sm:px-5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_10rem] dark:hover:bg-white/[0.02]"
+    class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-zinc-50/80 sm:px-5 lg:grid-cols-(--member-cols) dark:hover:bg-white/[0.02]"
   >
     <div class="flex min-w-0 items-center gap-3">
       <span
@@ -76,9 +77,9 @@ const attendanceTitle = computed(() =>
       </div>
     </div>
 
-    <!-- Attendance: next to the name on phones, last column from md. -->
+    <!-- Attendance: next to the name on phones, last column from lg. -->
     <div
-      class="flex items-center justify-end gap-2.5 md:order-3 md:justify-start"
+      class="flex items-center justify-end gap-2.5 lg:order-3 lg:justify-start"
       :title="attendanceTitle"
     >
       <span
@@ -100,10 +101,10 @@ const attendanceTitle = computed(() =>
       </span>
     </div>
 
-    <!-- Details: under the name on phones (aligned with it), middle column from md. -->
+    <!-- Details: under the name on phones (aligned with it), middle column from lg. -->
     <div
-      class="col-span-2 min-w-0 pl-12 md:order-2 md:col-span-1 md:pl-0"
-      :class="!$slots.default && 'hidden md:block'"
+      class="col-span-2 min-w-0 pl-12 lg:order-2 lg:col-span-1 lg:pl-0"
+      :class="!$slots.default && 'hidden lg:block'"
     >
       <slot />
     </div>

@@ -123,6 +123,16 @@ describe('self check-in', () => {
     )
   })
 
+  it('works for a make-up class too', async () => {
+    const booked = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/bookings',
+      payload: validBooking({ zaloName: 'Lan', contact: 'lan@example.com', makeupSlot: 'Thứ 6 18h - 20h' }),
+    })
+    expect(booked.statusCode).toBe(201)
+    expect((await checkIn(vn('2026-11-20T18:00'), 'lan@example.com')).slot).toBe('Thứ 6 18h - 20h')
+  })
+
   it('is available over HTTP without signing in; validates the contact', async () => {
     const unknown = await ctx.app.inject({
       method: 'POST',

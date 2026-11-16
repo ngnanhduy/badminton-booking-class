@@ -7,8 +7,8 @@ import {
   CalendarRange,
   ChevronDown,
   ChevronLeft,
+  Check,
   ChevronRight,
-  Clock,
   Eye,
   EyeOff,
   FileSpreadsheet,
@@ -25,7 +25,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
-import { dayName, slotShort, timeRange } from '@/i18n/format'
+import { dayName, slotShort, startTime, timeRange } from '@/i18n/format'
 
 import { adminApi } from '@/services/admin'
 import { api, ApiError, errorMessage } from '@/services/api'
@@ -212,56 +212,68 @@ const stats = computed(() => {
   ]
 })
 
-// ── Grouping: day → time slot → students ─────────────────────────────────────────────────
+// ── The week: one row per student, one column per day someone booked ─────────────────────
 
-interface Attendee {
+interface BookedRow {
   member: Member
-  /** Their other sessions that week, Mon → Sun. */
-  others: Slot[]
+  /** Their slots that week by weekday (0 = Monday), earliest first. */
+  byDay: Map<number, Slot[]>
+  /** All their slots, Mon → Sun. */
+  slots: Slot[]
 }
-interface SlotGroup {
-  slot: Slot
-  attendees: Attendee[]
-}
-interface DayGroup {
+interface WeekDay {
   dayIndex: number
   /** Any slot of the day, for its name. */
   first: Slot
   /** "17/11", or "" when the week has no readable date. */
   date: string
   timing: DayTiming | null
-  slots: SlotGroup[]
+  /** Every slot booked that day, earliest first. */
+  slots: Slot[]
   /** Students coming that day (once each, even with two slots). */
   count: number
 }
 
-/** Every day someone booked in the loaded week, Mon → Sun, each slot earliest first. */
-const days = computed<DayGroup[]>(() => {
+/** The students who booked the loaded week, each with their week by day. */
+const booked = computed<BookedRow[]>(() =>
+  members.value.flatMap((member) => {
+    if (!member.week) return []
+    // mergeSlots drops duplicates and sorts, so each day reads earliest first.
+    const slots = mergeSlots(member.week.slots)
+    const byDay = new Map<number, Slot[]>()
+    for (const slot of slots) {
+      const list = byDay.get(slot.dayIndex)
+      if (list) list.push(slot)
+      else byDay.set(slot.dayIndex, [slot])
+    }
+    return [{ member, byDay, slots }]
+  }),
+)
+
+/** The columns: every day someone booked in the loaded week, Mon → Sun. */
+const days = computed<WeekDay[]>(() => {
   const now = new Date()
-  const byDay = new Map<number, Map<string, SlotGroup>>()
-  for (const member of members.value) {
-    // mergeSlots drops duplicates and sorts, so `others` reads in week order.
-    const booked = mergeSlots(member.week?.slots ?? [])
-    for (const slot of booked) {
-      let day = byDay.get(slot.dayIndex)
-      if (!day) byDay.set(slot.dayIndex, (day = new Map()))
-      let group = day.get(slot.value)
-      if (!group) day.set(slot.value, (group = { slot, attendees: [] }))
-      group.attendees.push({ member, others: booked.filter((s) => s.value !== slot.value) })
+  const byDay = new Map<number, { slots: Map<string, Slot>; count: number }>()
+  for (const row of booked.value) {
+    for (const [dayIndex, slots] of row.byDay) {
+      let day = byDay.get(dayIndex)
+      if (!day) byDay.set(dayIndex, (day = { slots: new Map(), count: 0 }))
+      day.count++
+      for (const slot of slots) day.slots.set(slot.value, slot)
     }
   }
   return [...byDay]
     .sort(([a], [b]) => a - b)
-    .map(([dayIndex, groups]) => {
-      const slots = [...groups.values()].sort((a, b) => (a.slot.start ?? 99) - (b.slot.start ?? 99))
+    .map(([dayIndex, day]) => {
+      const slots = [...day.slots.values()].sort((a, b) => (a.start ?? 99) - (b.start ?? 99))
       const date = weekDayDate(shownWeek.value, dayIndex, now)
       return {
         dayIndex,
-        first: slots[0]!.slot,
+        first: slots[0]!,
         date: date ? dayMonth(date) : '',
         timing: date ? dayTiming(date, now) : null,
         slots,
-        count: new Set(slots.flatMap((s) => s.attendees.map((a) => a.member))).size,
+        count: day.count,
       }
     })
 })
@@ -298,22 +310,13 @@ const compare = (a: Member, b: Member) =>
     ? (attendanceRate(b) ?? -1) - (attendanceRate(a) ?? -1) || byName(a, b)
     : byName(a, b)
 
-const visibleDays = computed(() => {
-  if (dayFilter.value === 'none') return []
-  return days.value
-    .filter((d) => dayFilter.value === 'all' || d.dayIndex === dayFilter.value)
-    .map((d) => ({
-      ...d,
-      slots: d.slots
-        .map((s) => ({
-          ...s,
-          attendees: s.attendees
-            .filter((a) => matches(a.member))
-            .sort((a, b) => compare(a.member, b.member)),
-        }))
-        .filter((s) => s.attendees.length),
-    }))
-    .filter((d) => d.slots.length)
+/** Everyone coming that week, or on the chosen day; every day's column stays shown. */
+const visibleBooked = computed(() => {
+  const day = dayFilter.value
+  if (day === 'none') return []
+  return booked.value
+    .filter((r) => (day === 'all' || r.byDay.has(day)) && matches(r.member))
+    .sort((a, b) => compare(a.member, b.member))
 })
 
 const visibleNotBooked = computed(() =>
@@ -324,7 +327,7 @@ const visibleNotBooked = computed(() =>
 
 /** Folding only makes sense under the week's days; picked, searched or alone, it's open. */
 const notBookedFoldable = computed(
-  () => dayFilter.value === 'all' && !search.value && visibleDays.value.length > 0,
+  () => dayFilter.value === 'all' && !search.value && visibleBooked.value.length > 0,
 )
 const notBookedOpen = computed(() => !notBookedFoldable.value || notBookedExpanded.value)
 
@@ -367,9 +370,47 @@ function exportExcel() {
 const stepButton =
   'grid size-10 shrink-0 place-items-center rounded-xl bg-white text-zinc-600 ring-1 ring-zinc-950/10 transition hover:text-zinc-900 hover:ring-zinc-950/20 disabled:pointer-events-none disabled:opacity-40 dark:bg-zinc-950/40 dark:text-zinc-300 dark:ring-white/10 dark:hover:text-white dark:hover:ring-white/20'
 
-/** Same columns as MemberRow. */
-const columns = 'md:grid md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_10rem] md:gap-x-4'
 const memberKey = (m: Member) => `${m.zaloName}|${m.firstBookedAt}`
+
+// ── Week strip ──────────────────────────────────────────────────────────────────────────
+
+/** Width of a day cell (rem) from lg, and the gap between cells (`gap-1.5`). */
+const DAY_REM = 5
+const GAP_REM = 0.375
+
+/**
+ * Columns of the header and of every MemberRow from lg: name, the week's days, attendance.
+ * The days take just the room their cells need (12rem at least, for the "last week" lines of
+ * students who didn't book), so attendance sits right after them rather than across the card.
+ */
+const gridStyle = computed(() => {
+  const n = days.value.length
+  const strip = Math.max(12, n * DAY_REM + Math.max(n - 1, 0) * GAP_REM)
+  return { '--member-cols': `minmax(0,15rem) minmax(0,${strip}rem) minmax(9rem,1fr)` }
+})
+
+/**
+ * One day of the strip. From lg the header has the same cells, so the days line up as columns;
+ * below lg there is no header, and each cell names its day instead.
+ */
+const dayCell = 'w-9 shrink-0 sm:w-11 lg:w-auto lg:max-w-20 lg:min-w-0 lg:flex-1'
+
+/** With a day chip picked, the other days fade so its column stands out. */
+const dimmed = (day: WeekDay) =>
+  typeof dayFilter.value === 'number' && day.dayIndex !== dayFilter.value
+
+const slotsOn = (row: BookedRow, day: WeekDay) => row.byDay.get(day.dayIndex) ?? []
+/** "T2 · 18h – 20h, T4 · 18h – 20h" */
+const slotList = (slots: Slot[]) => slots.map(slotShort).join(', ')
+
+function cellClass(row: BookedRow, day: WeekDay) {
+  return [
+    row.byDay.has(day.dayIndex)
+      ? 'bg-brand-500/15 text-brand-800 ring-1 ring-brand-600/20 dark:bg-brand-400/15 dark:text-brand-200 dark:ring-brand-400/25'
+      : 'text-zinc-400 ring-1 ring-zinc-950/[0.06] lg:ring-0 dark:text-zinc-500 dark:ring-white/[0.06]',
+    dimmed(day) && 'opacity-40',
+  ]
+}
 </script>
 
 <template>
@@ -548,7 +589,7 @@ const memberKey = (m: Member) => `${m.zaloName}|${m.firstBookedAt}`
       </div>
 
       <EmptyState
-        v-else-if="!visibleDays.length && !visibleNotBooked.length"
+        v-else-if="!visibleBooked.length && !visibleNotBooked.length"
         class="border-t border-zinc-950/5 dark:border-white/[0.07]"
         :icon="UsersRound"
         :title="members.length ? t('adminBookings.noResults') : t('members.empty')"
@@ -559,15 +600,45 @@ const memberKey = (m: Member) => `${m.zaloName}|${m.firstBookedAt}`
         v-else
         class="transition-opacity"
         :class="loading && 'opacity-60'"
+        :style="gridStyle"
         :aria-busy="loading || undefined"
       >
+        <!-- Column header (lg and up): name, one column per day, attendance. -->
         <div
-          class="hidden border-t border-zinc-950/5 px-5 py-2.5 text-[0.6875rem] font-semibold tracking-wider text-zinc-500 uppercase dark:border-white/[0.07] dark:text-zinc-400"
-          :class="columns"
+          class="hidden items-end border-t border-zinc-950/5 px-5 py-2.5 text-[0.6875rem] font-semibold tracking-wider text-zinc-500 uppercase lg:grid lg:grid-cols-(--member-cols) lg:gap-x-4 dark:border-white/[0.07] dark:text-zinc-400"
           aria-hidden="true"
         >
           <span>{{ t('common.zaloName') }}</span>
-          <span>{{ t('members.colOthers') }}</span>
+          <span class="flex gap-1.5 font-normal tracking-normal normal-case">
+            <template v-if="visibleBooked.length">
+              <span
+                v-for="day in days"
+                :key="day.dayIndex"
+                class="flex flex-col items-center text-center leading-tight transition-opacity"
+                :class="[dayCell, dimmed(day) && 'opacity-40']"
+              >
+                <span
+                  class="flex items-center gap-1 text-xs font-semibold"
+                  :class="
+                    day.timing === 'today'
+                      ? 'text-brand-700 dark:text-brand-300'
+                      : 'text-zinc-800 dark:text-zinc-100'
+                  "
+                >
+                  <span v-if="day.timing === 'today'" class="size-1.5 rounded-full bg-brand-500" />
+                  {{ dayName(day.first, 'short') }}
+                </span>
+                <span v-if="day.date" class="tabular-nums">{{ day.date }}</span>
+                <span class="mt-0.5 tabular-nums">
+                  {{
+                    day.slots.length > 1
+                      ? t('members.daySlots', { n: day.slots.length }, day.slots.length)
+                      : timeRange(day.first)
+                  }}
+                </span>
+              </span>
+            </template>
+          </span>
           <span>{{ t('members.colAttendance') }}</span>
         </div>
 
@@ -578,70 +649,45 @@ const memberKey = (m: Member) => `${m.zaloName}|${m.firstBookedAt}`
           {{ t('members.noneBooked', { week: weekLabel }) }}
         </p>
 
-        <section
-          v-for="day in visibleDays"
-          :key="day.dayIndex"
-          :aria-labelledby="`members-day-${day.dayIndex}`"
-          :aria-current="day.timing === 'today' ? 'date' : undefined"
-          class="border-t border-zinc-950/5 dark:border-white/[0.07]"
+        <!-- One row per student: their whole week at a glance, the same days in every row. -->
+        <ul
+          v-if="visibleBooked.length"
+          class="divide-y divide-zinc-950/5 border-t border-zinc-950/5 dark:divide-white/[0.07] dark:border-white/[0.07]"
         >
-          <header
-            class="flex items-center gap-2 bg-zinc-50/80 px-4 py-2.5 sm:px-5 dark:bg-white/[0.025]"
-          >
-            <h3 :id="`members-day-${day.dayIndex}`" class="flex items-baseline gap-2">
-              <span class="font-semibold">{{ dayName(day.first) }}</span>
-              <span v-if="day.date" class="text-sm text-zinc-500 tabular-nums dark:text-zinc-400">
-                {{ day.date }}
-              </span>
-            </h3>
-            <span
-              v-if="day.timing === 'today'"
-              class="rounded-full bg-brand-600 px-2 py-0.5 text-[0.6875rem] font-semibold text-white dark:bg-brand-500 dark:text-brand-950"
-            >
-              {{ t('members.today') }}
-            </span>
-            <span class="ml-auto text-xs text-zinc-500 tabular-nums dark:text-zinc-400">
-              {{ t('members.weekStudents', { n: day.count }, day.count) }}
-            </span>
-          </header>
-
-          <div v-for="group in day.slots" :key="group.slot.value">
-            <p
-              class="flex items-center gap-1.5 px-4 pt-3 pb-1 text-xs font-semibold text-zinc-700 sm:px-5 dark:text-zinc-200"
-            >
-              <Clock class="size-3.5 text-zinc-400" aria-hidden="true" />
-              <span class="tabular-nums">{{ timeRange(group.slot) }}</span>
-              <!-- With one slot that day, the day's own count already says it. -->
+          <MemberRow v-for="row in visibleBooked" :key="memberKey(row.member)" :member="row.member">
+            <p class="sr-only">{{ t('members.bookedSlots', { slots: slotList(row.slots) }) }}</p>
+            <div class="flex gap-1 sm:gap-1.5" aria-hidden="true">
               <span
-                v-if="day.slots.length > 1"
-                class="font-normal text-zinc-500 dark:text-zinc-400"
+                v-for="day in days"
+                :key="day.dayIndex"
+                class="flex min-h-9 flex-col items-center justify-center rounded-lg px-0.5 py-1 text-center text-[0.6875rem] leading-tight transition-opacity lg:h-7 lg:min-h-0 lg:rounded-md lg:py-0"
+                :class="[dayCell, cellClass(row, day)]"
+                :title="slotList(slotsOn(row, day)) || undefined"
               >
-                ·
-                {{
-                  t('members.weekStudents', { n: group.attendees.length }, group.attendees.length)
-                }}
-              </span>
-            </p>
-            <ul class="divide-y divide-zinc-950/5 dark:divide-white/[0.07]">
-              <MemberRow v-for="a in group.attendees" :key="memberKey(a.member)" :member="a.member">
-                <template v-if="a.others.length" #default>
-                  <p class="flex flex-wrap items-center gap-1 text-xs">
-                    <span class="mr-0.5 text-zinc-500 md:hidden dark:text-zinc-400">
-                      {{ t('members.alsoOn') }}
-                    </span>
-                    <span
-                      v-for="s in a.others"
-                      :key="s.value"
-                      class="rounded-md bg-zinc-100 px-1.5 py-0.5 font-medium whitespace-nowrap text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-300"
-                    >
-                      {{ slotShort(s) }}
-                    </span>
-                  </p>
+                <!-- Phones: the day's name, and the start time when booked. -->
+                <span class="font-semibold lg:hidden">{{ dayName(day.first, 'short') }}</span>
+                <template v-if="slotsOn(row, day).length">
+                  <!-- From lg the header gives the time, unless the day has several slots. -->
+                  <span
+                    class="max-w-full truncate tabular-nums"
+                    :class="day.slots.length > 1 ? 'lg:font-semibold' : 'lg:hidden'"
+                  >
+                    {{ slotsOn(row, day).map(startTime).join(', ') }}
+                  </span>
+                  <Check
+                    v-if="day.slots.length === 1"
+                    class="hidden size-3.5 lg:block"
+                    :stroke-width="3"
+                  />
                 </template>
-              </MemberRow>
-            </ul>
-          </div>
-        </section>
+                <span
+                  v-else
+                  class="hidden size-1 rounded-full bg-zinc-300 lg:block dark:bg-zinc-600"
+                />
+              </span>
+            </div>
+          </MemberRow>
+        </ul>
 
         <section
           v-if="visibleNotBooked.length"

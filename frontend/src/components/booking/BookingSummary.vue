@@ -17,23 +17,29 @@ const { t } = useI18n()
 const booking = useBookingStore()
 const schedule = useScheduleStore()
 
+/** "Thứ 2 (16/11), 18h – 20h", or '' when nothing is chosen. */
+function describe(slot: string) {
+  if (!slot) return ''
+  const parsed = parseSlot(slot)
+  const date = slotDate(schedule.config?.weekLabel ?? '', parsed.dayIndex)
+  return `${dayName(parsed)}${date ? ` (${date})` : ''}, ${timeRange(parsed)}`
+}
+
 const rows = computed(() =>
-  booking.selectedSlots.map(({ index, slot }) => {
-    const parsed = slot ? parseSlot(slot) : null
-    const date = parsed ? slotDate(schedule.config?.weekLabel ?? '', parsed.dayIndex) : ''
-    return {
-      key: index,
-      label: t('common.session', { n: index + 1 }),
-      value: parsed ? `${dayName(parsed)}${date ? ` (${date})` : ''}, ${timeRange(parsed)}` : '',
-    }
-  }),
+  booking.selectedSlots.map(({ index, slot }) => ({
+    key: index,
+    label: t('common.session', { n: index + 1 }),
+    value: describe(slot),
+  })),
 )
 
 const name = computed(() => booking.form.zaloName.trim())
 const contact = computed(() =>
   booking.form.contact.trim() ? maskContact(booking.form.contact) : '',
 )
-const makeup = computed(() => booking.form.makeup.trim())
+/** The make-up class, when ticked ('' = not chosen yet); null when there is none. */
+const makeupSlot = computed(() => (booking.makeupOn ? describe(booking.form.makeupSlot) : null))
+const makeupNote = computed(() => (booking.makeupOn ? booking.form.makeup.trim() : ''))
 </script>
 
 <template>
@@ -97,9 +103,18 @@ const makeup = computed(() => booking.form.makeup.trim())
         <dt class="text-zinc-500 dark:text-zinc-400">{{ t('common.sessionCount') }}</dt>
         <dd class="text-zinc-400 dark:text-zinc-500">{{ t('common.notChosen') }}</dd>
       </div>
-      <div v-if="makeup" class="flex justify-between gap-4 py-2.5">
-        <dt class="shrink-0 text-zinc-500 dark:text-zinc-400">{{ t('common.makeup') }}</dt>
-        <dd class="line-clamp-2 text-right font-medium break-words">{{ makeup }}</dd>
+      <div v-if="makeupSlot !== null" class="flex justify-between gap-4 py-2.5">
+        <dt class="shrink-0 text-amber-700 dark:text-amber-300">{{ t('common.makeup') }}</dt>
+        <dd
+          class="text-right"
+          :class="makeupSlot ? 'font-medium' : 'text-zinc-400 dark:text-zinc-500'"
+        >
+          {{ makeupSlot || t('common.notChosen') }}
+        </dd>
+      </div>
+      <div v-if="makeupNote" class="flex justify-between gap-4 py-2.5">
+        <dt class="shrink-0 text-zinc-500 dark:text-zinc-400">{{ t('common.makeupNote') }}</dt>
+        <dd class="line-clamp-2 text-right font-medium break-words">{{ makeupNote }}</dd>
       </div>
     </dl>
 

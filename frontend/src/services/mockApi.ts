@@ -3,6 +3,7 @@ import type {
   CheckInResult,
   DeleteResponse,
   ExistingBooking,
+  HistoryResponse,
   Member,
   MemberList,
   PastSchedule,
@@ -77,6 +78,14 @@ export function createDemoConfig(): ScheduleConfig {
       'Thứ 6 20h - 22h',
       'Thứ 7 14h - 16h',
       'Thứ 7 18h - 20h',
+      'Chủ nhật 10h - 12h',
+    ],
+    slotsMakeup: [
+      'Thứ 3 14h - 16h',
+      'Thứ 4 18h - 20h',
+      'Thứ 5 14h - 16h',
+      'Thứ 6 20h - 22h',
+      'Thứ 7 14h - 16h',
       'Chủ nhật 10h - 12h',
     ],
     capacity: 8,
@@ -187,6 +196,10 @@ function createDemoMembers(currentWeek: string, week: string) {
   ]
 }
 
+/** Every class a booking comes to: its sessions, then its make-up class. */
+const classesOf = (b: Pick<ExistingBooking, 'slots' | 'makeupSlot'>) =>
+  b.makeupSlot ? [...b.slots, b.makeupSlot] : [...b.slots]
+
 const clone = <T>(value: T): T => structuredClone(value)
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -215,17 +228,20 @@ export function createMockApi(latencyMs = 600): BookingApi {
       }
       const now = new Date().toISOString()
       // Bookings made in this browser belong to the current week.
-      const booked: Member[] = [...bookings.values()].map((b) => ({
-        zaloName: b.zaloName,
-        weeks: 1,
-        sessions: b.count,
-        week: weekLabel === config.weekLabel ? { count: b.count, slots: [...b.slots] } : null,
-        lastWeekLabel: b.weekLabel,
-        firstBookedAt: now,
-        lastBookedAt: now,
-        attended: 0,
-        absent: 0,
-      }))
+      const booked: Member[] = [...bookings.values()].map((b) => {
+        const classes = classesOf(b)
+        return {
+          zaloName: b.zaloName,
+          weeks: 1,
+          sessions: classes.length,
+          week: weekLabel === config.weekLabel ? { count: classes.length, slots: classes } : null,
+          lastWeekLabel: b.weekLabel,
+          firstBookedAt: now,
+          lastBookedAt: now,
+          attended: 0,
+          absent: 0,
+        }
+      })
       const demo = createDemoMembers(config.weekLabel, weekLabel)
       const marks = demo.flatMap((m) => Object.values(m.marks))
       const bookedIn = (label: string) =>
@@ -278,12 +294,15 @@ export function createMockApi(latencyMs = 600): BookingApi {
       return clone(booking)
     },
 
-    async bookingHistory(rawContact: string): Promise<PastSchedule[]> {
+    async bookingHistory(rawContact: string): Promise<HistoryResponse> {
       await delay(latencyMs)
       const contact = normalizeContact(rawContact)
       if (!contact) throw invalidContact()
-      // Bookings made in this browser are all in the current week, which isn't history.
-      return contact.value === DEMO_RETURNING_CONTACT ? createDemoHistory() : []
+      return {
+        // Bookings made in this browser are all in the current week, which isn't history.
+        history: contact.value === DEMO_RETURNING_CONTACT ? createDemoHistory() : [],
+        bookedThisWeek: bookings.has(contact.value),
+      }
     },
 
     async deleteBooking(rawContact: string): Promise<DeleteResponse> {
@@ -292,7 +311,7 @@ export function createMockApi(latencyMs = 600): BookingApi {
       if (!contact) throw invalidContact()
       const booking = bookings.get(contact.value)
       if (!booking) throw notFound(config.weekLabel)
-      for (const slot of booking.slots) {
+      for (const slot of classesOf(booking)) {
         config.counts[slot] = Math.max(0, (config.counts[slot] ?? 1) - 1)
       }
       config.totalBookings--
@@ -328,9 +347,26 @@ export function createMockApi(latencyMs = 600): BookingApi {
           { name },
         )
       }
-      const previous = bookings.get(key)?.slots ?? []
+      const existing = bookings.get(key)
+      const previous = existing ? classesOf(existing) : []
 
-      const days = payload.slots.map((s) => parseSlot(s)).filter((s) => s.dayIndex < 7)
+      const makeupSlot = payload.makeupSlot ?? ''
+      // A make-up class left as it was keeps its slot, even if no longer offered.
+      if (
+        makeupSlot &&
+        !config.slotsMakeup?.includes(makeupSlot) &&
+        makeupSlot !== existing?.makeupSlot
+      ) {
+        throw fail(400, 'MAKEUP_SLOT_INVALID', `Ca học bù "${makeupSlot}" không hợp lệ.`, {
+          slot: makeupSlot,
+        })
+      }
+      const wanted = classesOf({ slots: payload.slots, makeupSlot })
+      if (new Set(wanted).size !== wanted.length) {
+        throw fail(400, 'SLOT_DUPLICATE', 'Các buổi không được trùng ca.')
+      }
+
+      const days = wanted.map((s) => parseSlot(s)).filter((s) => s.dayIndex < 7)
       const clash = days.find((s, i) => days.findIndex((o) => o.dayIndex === s.dayIndex) !== i)
       if (clash) {
         throw fail(
@@ -342,9 +378,10 @@ export function createMockApi(latencyMs = 600): BookingApi {
       }
 
       if (config.capacity) {
-        for (const slot of payload.slots) {
-          const others = (config.counts[slot] ?? 0) - (previous.includes(slot) ? 1 : 0)
-          if (others >= config.capacity) {
+        for (const slot of wanted) {
+          // Keeping a place the student already has takes no new one, even in a full slot.
+          if (previous.includes(slot)) continue
+          if ((config.counts[slot] ?? 0) >= config.capacity) {
             throw fail(409, 'SLOT_FULL', `Ca "${slot}" đã đủ người, vui lòng chọn ca khác.`, {
               slot,
             })
@@ -353,17 +390,18 @@ export function createMockApi(latencyMs = 600): BookingApi {
       }
 
       for (const slot of previous) config.counts[slot] = Math.max(0, (config.counts[slot] ?? 1) - 1)
-      for (const slot of payload.slots) config.counts[slot] = (config.counts[slot] ?? 0) + 1
-      if (!bookings.has(key)) config.totalBookings++
+      for (const slot of wanted) config.counts[slot] = (config.counts[slot] ?? 0) + 1
+      if (!existing) config.totalBookings++
       bookings.set(key, {
         zaloName: name,
         count: payload.count,
         slots: [...payload.slots],
+        makeupSlot,
         makeup: payload.makeup,
         weekLabel: config.weekLabel,
       })
 
-      return { updated: previous.length > 0, config: clone(config) }
+      return { updated: !!existing, config: clone(config) }
     },
   }
 }

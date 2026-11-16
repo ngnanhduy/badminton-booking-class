@@ -56,6 +56,8 @@ export interface WeekDto {
   slots1: string[]
   slots2: string[]
   slots3: string[]
+  /** Slot labels offered for a make-up class (empty = none this week). */
+  slotsMakeup: string[]
   capacity: number | null
   open: boolean
   opensAt: string | null
@@ -73,6 +75,7 @@ export function toWeekDto(w: WeekRow): WeekDto {
     slots1: w.slots1,
     slots2: w.slots2,
     slots3: w.slots3,
+    slotsMakeup: w.slotsMakeup,
     capacity: w.capacity,
     open: w.open,
     opensAt: w.opensAt?.toISOString() ?? null,
@@ -87,10 +90,11 @@ export interface WeekSummary extends WeekDto {
   /** The week the public pages show. */
   current: boolean
   bookings: number
+  /** Places taken: sessions plus make-up classes. */
   sessions: number
   present: number
   absent: number
-  /** Bookings per slot label. */
+  /** Bookings per slot label (make-up classes included). */
   counts: Record<string, number>
 }
 
@@ -109,6 +113,7 @@ export async function listWeeks(db: Reader): Promise<WeekSummary[]> {
         slot1: bookings.slot1,
         slot2: bookings.slot2,
         slot3: bookings.slot3,
+        makeupSlot: bookings.makeupSlot,
       })
       .from(bookings),
     db
@@ -126,8 +131,8 @@ export async function listWeeks(db: Reader): Promise<WeekSummary[]> {
     let s = stats.get(b.weekLabel)
     if (!s) stats.set(b.weekLabel, (s = { bookings: 0, sessions: 0, counts: {} }))
     s.bookings++
-    s.sessions += b.sessionCount
-    for (const slot of [b.slot1, b.slot2, b.slot3]) {
+    s.sessions += b.sessionCount + (b.makeupSlot ? 1 : 0)
+    for (const slot of [b.slot1, b.slot2, b.slot3, b.makeupSlot]) {
       if (slot) s.counts[slot] = (s.counts[slot] ?? 0) + 1
     }
   }
@@ -153,6 +158,8 @@ export interface WeekInput {
   slots1: string[]
   slots2: string[]
   slots3: string[]
+  /** Slots offered for a make-up class (may be empty). */
+  slotsMakeup: string[]
   capacity: number | null
   open: boolean
   opensAt: Date | null
@@ -205,6 +212,7 @@ async function renameSlots(
     await tx.update(bookings).set({ slot1: to }).where(and(inWeek, eq(bookings.slot1, from)))
     await tx.update(bookings).set({ slot2: to }).where(and(inWeek, eq(bookings.slot2, from)))
     await tx.update(bookings).set({ slot3: to }).where(and(inWeek, eq(bookings.slot3, from)))
+    await tx.update(bookings).set({ makeupSlot: to }).where(and(inWeek, eq(bookings.makeupSlot, from)))
     await tx
       .update(attendance)
       .set({ slot: to })
@@ -299,6 +307,7 @@ export async function createWeek(
           slots2: input.slots2 ?? base.slots2,
           // Clients from before session 3 had its own list send only slots2 (used for both).
           slots3: input.slots3 ?? input.slots2 ?? base.slots3,
+          slotsMakeup: input.slotsMakeup ?? base.slotsMakeup,
           capacity: input.capacity === undefined ? base.capacity : input.capacity,
           open,
           opensAt,
@@ -357,8 +366,8 @@ export async function updateWeek(
             tx,
             row!.label,
             slotRenames,
-            new Set([...week.slots1, ...week.slots2, ...week.slots3]),
-            new Set([...row!.slots1, ...row!.slots2, ...row!.slots3]),
+            new Set([...week.slots1, ...week.slots2, ...week.slots3, ...week.slotsMakeup]),
+            new Set([...row!.slots1, ...row!.slots2, ...row!.slots3, ...row!.slotsMakeup]),
           )
         : 0
       await audit(tx, {

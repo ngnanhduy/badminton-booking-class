@@ -1,23 +1,35 @@
 import type { SlotRename } from '@/types/admin'
 import { formatHour, parseSlot } from './slots'
 
-/** Whether a slot is offered for session 1, 2 and 3 of a booking (`[i]` = session i + 1). */
-export type SessionFlags = [boolean, boolean, boolean]
+/**
+ * Whether a slot is offered for session 1, 2 and 3 of a booking (`[i]` = session i + 1) and
+ * for a make-up class (`[MAKEUP]`).
+ */
+export type SessionFlags = [boolean, boolean, boolean, boolean]
 
-/** A week's slot lists, one per session. */
+/** Index of the make-up class in SessionFlags. */
+export const MAKEUP = 3
+
+/** A week's slot lists, one per session, plus the make-up class list. */
 export interface SlotLists {
   slots1: readonly string[]
   slots2: readonly string[]
   slots3: readonly string[]
+  /** Left out by older data: no make-up classes. */
+  slotsMakeup?: readonly string[]
 }
 
-const listsOf = (w: SlotLists) => [w.slots1, w.slots2, w.slots3] as const
+const listsOf = (w: SlotLists) => [w.slots1, w.slots2, w.slots3, w.slotsMakeup ?? []] as const
 const noneOn = (s: readonly boolean[]) => !s.some(Boolean)
+
+/** Every label a week has, in any list. */
+export const allLabels = (w: SlotLists) => new Set(listsOf(w).flat())
 
 /**
  * Editable form of a week's time slots. A week stores one label list ("Thứ 2 18h - 20h") per
- * session of a booking: `slots1`, `slots2` and `slots3`. The editor shows one list of slots
- * per day instead, each with a toggle per session.
+ * session of a booking: `slots1`, `slots2` and `slots3`, plus `slotsMakeup` for make-up
+ * classes. The editor shows one list of slots per day instead, each with a toggle per session
+ * and one for make-up classes.
  */
 export interface SlotDraft {
   /** Stable key for v-for. */
@@ -29,7 +41,7 @@ export interface SlotDraft {
   end: string
   /** The label itself, for free-text slots. */
   text: string
-  /** Offered for session 1, 2, 3. */
+  /** Offered for session 1, 2, 3 and for a make-up class. */
   sessions: SessionFlags
   /** Label as saved in this week, or null for a slot added (or copied) in the editor. */
   original: string | null
@@ -61,7 +73,7 @@ const nextKey = () => `slot-${++seq}`
  */
 export function draftsFromSlots(
   week: SlotLists,
-  saved: ReadonlySet<string> = new Set(listsOf(week).flat()),
+  saved: ReadonlySet<string> = allLabels(week),
 ): SlotDraft[] {
   const lists = listsOf(week)
   return [...new Set(lists.flat())].map((label) => {
@@ -92,7 +104,7 @@ export function newDraft(day: number, after?: SlotDraft): SlotDraft {
     start: toTime(start),
     end: toTime(start + 2),
     text: '',
-    sessions: after ? [...after.sessions] : [true, true, true],
+    sessions: after ? [...after.sessions] : [true, true, true, true],
     original: null,
     removed: false,
     initial: null,
@@ -217,7 +229,7 @@ export function validateDrafts(drafts: readonly SlotDraft[]) {
   }
   return {
     issues,
-    /** Sessions (1-based) that no slot is offered for. */
+    /** Sessions (1-based) that no slot is offered for. Make-up classes are optional. */
     missingSessions: [1, 2, 3].filter((n) => !active.some((d) => d.sessions[n - 1])),
     get ok() {
       return !Object.keys(this.issues).length && !this.missingSessions.length
@@ -230,6 +242,7 @@ export function slotsFromDrafts(drafts: readonly SlotDraft[]): {
   slots1: string[]
   slots2: string[]
   slots3: string[]
+  slotsMakeup: string[]
   renames: SlotRename[]
 } {
   const active = drafts
@@ -246,6 +259,7 @@ export function slotsFromDrafts(drafts: readonly SlotDraft[]): {
     slots1: active.filter((a) => a.d.sessions[0]).map((a) => a.label),
     slots2: active.filter((a) => a.d.sessions[1]).map((a) => a.label),
     slots3: active.filter((a) => a.d.sessions[2]).map((a) => a.label),
+    slotsMakeup: active.filter((a) => a.d.sessions[MAKEUP]).map((a) => a.label),
     renames: active
       .filter((a) => a.d.original && a.label !== a.d.original)
       .map((a) => ({ from: a.d.original!, to: a.label })),

@@ -33,6 +33,8 @@ const WeekFields = z
     slots1: z.array(SlotLabel).min(1).max(50),
     slots2: z.array(SlotLabel).min(1).max(50),
     slots3: z.array(SlotLabel).min(1).max(50),
+    /** Slots offered for a make-up class; empty = no make-up classes that week. */
+    slotsMakeup: z.array(SlotLabel).max(50),
     capacity: z.number().int().positive().nullable(),
     open: z.boolean(),
     opensAt: IsoDateTime,

@@ -81,6 +81,36 @@ async function mountDashboard() {
 const contactsButton = (wrapper: Awaited<ReturnType<typeof mountDashboard>>) =>
   wrapper.findAll('button').find((b) => /SĐT \/ email/.test(b.text()))
 
+describe('MembersDashboard week roster', () => {
+  const member = (zaloName: string, slots: string[]) => ({
+    ...list(false).members[0]!,
+    zaloName,
+    week: { count: slots.length, slots },
+  })
+
+  it('lists each student once with their whole week, and filters by day', async () => {
+    server.publicList.mockImplementation(async () => ({
+      ...list(false),
+      members: [
+        member('Minh Anh', ['Thứ 4 18h - 20h', 'Thứ 2 18h - 20h']),
+        member('Lan', ['Thứ 4 18h - 20h']),
+      ],
+    }))
+    const wrapper = await mountDashboard()
+
+    const rows = () => wrapper.findAll('li').map((li) => li.text())
+    expect(rows()).toHaveLength(2)
+    expect(wrapper.text().match(/Minh Anh/g)).toHaveLength(1)
+    expect(wrapper.text()).toContain('Đã đăng ký: T2 · 18h – 20h, T4 · 18h – 20h')
+
+    const chip = wrapper.findAll('[role="group"] button').find((b) => b.text().startsWith('T2'))!
+    await chip.trigger('click')
+    expect(chip.attributes('aria-pressed')).toBe('true')
+    expect(rows()).toHaveLength(1)
+    expect(rows()[0]).toContain('Minh Anh')
+  })
+})
+
 describe('MembersDashboard phone / email (admins only)', () => {
   it('has no button for visitors, who only get the public list', async () => {
     const wrapper = await mountDashboard()

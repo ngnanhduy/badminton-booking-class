@@ -54,6 +54,18 @@ describe('SlotScheduleEditor', () => {
     expect(wrapper.text()).toContain('Đã thêm 6 ca. 1 ngày đã có ca này')
   })
 
+  it('has a make-up toggle next to sessions 1, 2, 3 on each slot', async () => {
+    const { wrapper, drafts } = render()
+    // The first one belongs to the quick-add form, the second to Monday's slot.
+    const toggles = wrapper.findAll('[data-testid="makeup-toggle"]')
+    expect(toggles).toHaveLength(2)
+    expect(toggles[1]!.text()).toBe('Bù')
+    expect(toggles[1]!.attributes('aria-pressed')).toBe('false')
+    await toggles[1]!.trigger('click')
+    expect(toggles[1]!.attributes('aria-pressed')).toBe('true')
+    expect(slotsFromDrafts(drafts).slotsMakeup).toEqual(['Thứ 2 18h - 20h'])
+  })
+
   it("can't add until a day is chosen and the time is valid", async () => {
     const { wrapper, button, setTime } = render()
     expect(button('Chọn ngày để thêm').attributes('disabled')).toBeDefined()

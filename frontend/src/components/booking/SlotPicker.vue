@@ -11,16 +11,18 @@ const props = defineProps<{
   selected: string
   capacity: number | null
   counts: Record<string, number>
-  /** Slot value → 1-based number of another session that already uses it. */
-  takenBy: Record<string, number>
-  /** Weekday index → 1-based number of another session already on that day. */
-  dayTakenBy?: Record<number, number>
+  /** Slot value → name of another session that already uses it ("Buổi 2", "Buổi bù"). */
+  takenBy: Record<string, string>
+  /** Weekday index → name of another session already on that day. */
+  dayTakenBy?: Record<number, string>
   /** Weekdays (0 = Monday) already over: their slots are shown but can't be picked. */
   pastDays?: ReadonlySet<number>
   /** Slots of the saved booking: still selectable on a past day (the student already has them). */
   kept?: readonly string[]
   /** id of the session tab that controls this panel; omit when there are no tabs. */
   labelledBy?: string
+  /** id of the panel (the session tabs point at "session-panel"). */
+  panelId?: string
 }>()
 
 const emit = defineEmits<{ select: [value: string] }>()
@@ -39,7 +41,7 @@ const isPast = (slot: Slot) => isPastDay(slot.dayIndex) && !props.kept?.includes
 <template>
   <!-- One compact row per day: the whole week fits on screen, times line up in columns. -->
   <div
-    id="session-panel"
+    :id="panelId ?? 'session-panel'"
     :role="labelledBy ? 'tabpanel' : undefined"
     :aria-labelledby="labelledBy"
     class="divide-y divide-zinc-950/[0.06] rounded-2xl bg-zinc-50/80 ring-1 ring-zinc-950/[0.04] dark:divide-white/[0.06] dark:bg-white/[0.02] dark:ring-white/[0.06]"
@@ -71,8 +73,8 @@ const isPast = (slot: Slot) => isPastDay(slot.dayIndex) && !props.kept?.includes
           :selected="selected === slot.value"
           :count="counts[slot.value] ?? 0"
           :capacity="capacity"
-          :taken-by="takenBy[slot.value] ?? 0"
-          :same-day-as="dayTakenBy?.[slot.dayIndex] ?? 0"
+          :taken-by="takenBy[slot.value] ?? ''"
+          :same-day-as="dayTakenBy?.[slot.dayIndex] ?? ''"
           :past="isPast(slot)"
           @select="emit('select', $event)"
         />

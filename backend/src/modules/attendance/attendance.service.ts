@@ -52,6 +52,7 @@ export async function markAttendance(
         slot1: bookings.slot1,
         slot2: bookings.slot2,
         slot3: bookings.slot3,
+        makeupSlot: bookings.makeupSlot,
       })
       .from(bookings)
       .where(inArray(bookings.id, ids))
@@ -61,6 +62,7 @@ export async function markAttendance(
       const booking = byId.get(mark.bookingId)
       if (!booking) throw badRequest('BOOKING_NOT_FOUND', 'Không tìm thấy đăng ký.')
       const booked = [booking.slot1, booking.slot2, booking.slot3].slice(0, booking.count)
+      if (booking.makeupSlot) booked.push(booking.makeupSlot)
       if (!booked.includes(mark.slot)) {
         throw badRequest('SLOT_NOT_BOOKED', `Học viên không đăng ký ca "${mark.slot}".`, {
           slot: mark.slot,

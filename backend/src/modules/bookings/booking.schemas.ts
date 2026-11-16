@@ -11,6 +11,9 @@ export const SubmitBookingBody = z.object({
     error: 'Vui lòng chọn số buổi tập (1–3).',
   }),
   slots: z.array(z.string().trim().max(100)).max(3),
+  /** Optional make-up class: one of the week's make-up slots, or '' for none. */
+  makeupSlot: z.string().trim().max(100).optional().default(''),
+  /** Free-text note about the make-up class. */
   makeup: z.string().trim().max(300, 'Ghi chú buổi bù tối đa 300 ký tự.').optional().default(''),
   consent: z.literal(true, {
     error: 'Bạn cần đồng ý với thông báo xử lý dữ liệu cá nhân để đăng ký.',

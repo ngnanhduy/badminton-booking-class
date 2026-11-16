@@ -25,11 +25,12 @@ export interface MemberView {
   contact?: string
   /** Number of weeks booked. */
   weeks: number
-  /** Sessions booked in total. */
+  /** Sessions booked in total (make-up classes included). */
   sessions: number
   /**
-   * Their booking in the chosen week, or null if they didn't book it. Which session they
-   * missed is not shown publicly (the privacy notice promises totals only).
+   * Their booking in the chosen week, or null if they didn't book it: every class they come
+   * to, a make-up class included (not marked as one). Which session they missed is not shown
+   * publicly (the privacy notice promises totals only).
    */
   week: { count: number; slots: string[] } | null
   lastWeekLabel: string
@@ -61,8 +62,12 @@ export interface MemberList {
   members: MemberView[]
 }
 
-const slotsOf = (row: BookingRow) =>
-  [row.slot1, row.slot2, row.slot3].slice(0, row.sessionCount).map((s) => s ?? '')
+/** The classes a booking comes to: its sessions, then its make-up class if any. */
+const slotsOf = (row: BookingRow) => {
+  const slots = [row.slot1, row.slot2, row.slot3].slice(0, row.sessionCount).map((s) => s ?? '')
+  if (row.makeupSlot) slots.push(row.makeupSlot)
+  return slots
+}
 
 /** Weeks newest first, with how many students booked each. */
 async function listMemberWeeks(deps: AppDeps, currentLabel: string): Promise<MemberWeek[]> {
@@ -153,8 +158,8 @@ export async function listMembers(
       zaloName: decryptName(keyring, latest),
       ...(withContact && { contact: decryptContact(keyring, latest) }),
       weeks: group.length,
-      sessions: group.reduce((sum, r) => sum + r.sessionCount, 0),
-      week: chosen ? { count: chosen.sessionCount, slots: slotsOf(chosen) } : null,
+      sessions: group.reduce((sum, r) => sum + r.sessionCount + (r.makeupSlot ? 1 : 0), 0),
+      week: chosen ? { count: slotsOf(chosen).length, slots: slotsOf(chosen) } : null,
       lastWeekLabel: latest.weekLabel,
       firstBookedAt: group[group.length - 1]!.createdAt.toISOString(),
       lastBookedAt: latest.updatedAt.toISOString(),

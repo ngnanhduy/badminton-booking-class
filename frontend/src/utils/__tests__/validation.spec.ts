@@ -95,9 +95,67 @@ describe('validateBooking', () => {
     )
     expect(validateBooking(draft({ slots: ['Thứ 4 18h - 20h'] }), config, tuesday)).toEqual({})
     // A student changing their booking may keep the Monday session they already have.
-    expect(
-      validateBooking(monday, config, { ...tuesday, kept: ['Thứ 2 18h - 20h'] }),
-    ).toEqual({})
+    const saved = { slots: ['Thứ 2 18h - 20h'] }
+    expect(validateBooking(monday, config, { ...tuesday, saved })).toEqual({})
+  })
+
+  it('keeps sessions left as they were when changing a booking, even if no longer offered', () => {
+    const [MON, TUE, WED, FRI] = ['Thứ 2 18h - 20h', 'Thứ 3 14h - 16h', 'Thứ 4 18h - 20h', 'Thứ 6 18h - 20h']
+    // Booked Monday, Tuesday, Wednesday; since then Tuesday was dropped from session 2's list.
+    const saved = { slots: [MON, TUE, WED] }
+    const now = { slots1: [MON, FRI], slots2: [MON, WED], slots3: [MON, WED] }
+
+    // Only session 1 changes: sessions 2 and 3 stay as they were.
+    const changed = draft({ count: 3, slots: [FRI, TUE, WED] })
+    expect(validateBooking(changed, now, { saved })).toEqual({})
+    // A new booking can't pick Tuesday for session 2 any more…
+    expect(validateBooking(changed, now).slot1).toContain('không có trong lịch Buổi 2')
+    // …and neither can a session that changes (here: Tuesday moved to session 3).
+    const swapped = draft({ count: 3, slots: [FRI, WED, TUE] })
+    expect(validateBooking(swapped, now, { saved }).slot2).toContain('không có trong lịch Buổi 3')
+  })
+
+  describe('make-up class', () => {
+    const withMakeup = { ...config, slotsMakeup: ['Thứ 4 18h - 20h', 'Thứ 5 18h - 20h'] }
+    const makeup = (makeupSlot: string, overrides: Partial<BookingDraft> = {}) =>
+      validateBooking(draft({ makeupEnabled: true, makeupSlot, ...overrides }), withMakeup)
+
+    it('is only checked when ticked', () => {
+      expect(validateBooking(draft({ makeupSlot: 'nope' }), withMakeup)).toEqual({})
+      expect(makeup('Thứ 4 18h - 20h')).toEqual({})
+    })
+
+    it('needs a slot from the make-up list', () => {
+      expect(makeup('')).toEqual({ makeup: 'Vui lòng chọn ca học bù.' })
+      expect(makeup('Thứ 2 20h - 22h')).toEqual({
+        makeup: 'Ca "Thứ 2 20h - 22h" không có trong lịch học bù.',
+      })
+    })
+
+    it('follows the session rules: own slot, own day, not over', () => {
+      const wed = { slots: ['Thứ 4 18h - 20h'] }
+      expect(makeup('Thứ 4 18h - 20h', wed)).toEqual({ makeup: 'Ca này đã chọn cho Buổi 1.' })
+      const sameDay = { ...withMakeup, slotsMakeup: ['Thứ 2 20h - 22h'] }
+      expect(
+        validateBooking(draft({ makeupEnabled: true, makeupSlot: 'Thứ 2 20h - 22h' }), sameDay),
+      ).toEqual({ makeup: 'Buổi 1 đã chọn ngày này. Vui lòng chọn ngày khác.' })
+      const thursdayOver = { pastDays: new Set([0, 1, 2, 3]) }
+      const late = draft({ makeupEnabled: true, makeupSlot: 'Thứ 5 18h - 20h' })
+      expect(validateBooking(late, withMakeup, thursdayOver).makeup).toContain('ngày đã qua')
+      expect(
+        validateBooking(late, withMakeup, {
+          ...thursdayOver,
+          saved: { slots: ['Thứ 2 18h - 20h'], makeupSlot: 'Thứ 5 18h - 20h' },
+        }),
+      ).toEqual({})
+    })
+
+    it('keeps a make-up class left as it was, even if no longer offered', () => {
+      const saved = { slots: ['Thứ 2 18h - 20h'], makeupSlot: 'Thứ 6 18h - 20h' }
+      const kept = draft({ makeupEnabled: true, makeupSlot: 'Thứ 6 18h - 20h' })
+      expect(validateBooking(kept, withMakeup, { saved })).toEqual({})
+      expect(validateBooking(kept, withMakeup).makeup).toContain('không có trong lịch học bù')
+    })
   })
 
   it('passes a complete booking', () => {

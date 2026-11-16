@@ -15,6 +15,7 @@ import { errorMessage } from '@/services/api'
 import { useScheduleStore } from '@/stores/schedule'
 import type { Week } from '@/types/admin'
 import {
+  allLabels,
   draftsFromSlots,
   slotsFromDrafts,
   validateDrafts,
@@ -82,7 +83,7 @@ function copyFromWeek() {
   const week = selected.value
   if (!source || !week) return
   fillSettings(source)
-  drafts.value = draftsFromSlots(source, new Set([...week.slots1, ...week.slots2, ...week.slots3]))
+  drafts.value = draftsFromSlots(source, allLabels(week))
   // Slots of this week that the copy doesn't have: shown as removed, so it's visible.
   const kept = new Set(drafts.value.map((d) => d.original))
   for (const old of draftsFromSlots(week)) {
@@ -129,7 +130,7 @@ async function save() {
     error.value = invalid
     return
   }
-  const { slots1, slots2, slots3, renames } = slotsFromDrafts(drafts.value)
+  const { slots1, slots2, slots3, slotsMakeup, renames } = slotsFromDrafts(drafts.value)
   saving.value = true
   try {
     const { week: updated, config } = await adminApi.updateWeek(week.id, {
@@ -138,6 +139,7 @@ async function save() {
       slots1,
       slots2,
       slots3,
+      slotsMakeup,
       ...(renames.length && { slotRenames: renames }),
     })
     schedule.setConfig(config)

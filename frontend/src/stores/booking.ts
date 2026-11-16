@@ -9,13 +9,19 @@ import type {
   BookingPayload,
   BookingResult,
   ExistingBooking,
+  HistoryResponse,
   PastSchedule,
   SessionCount,
 } from '@/types/booking'
 import { normalizeContact } from '@/utils/contact'
 import { fitSchedule, type ScheduleFit } from '@/utils/history'
 import { sessionSlots } from '@/utils/slots'
-import { MAX_MAKEUP_LENGTH, validateBooking } from '@/utils/validation'
+import {
+  heldSlots,
+  MAX_MAKEUP_LENGTH,
+  validateBooking,
+  type SavedBooking,
+} from '@/utils/validation'
 import { useScheduleStore } from './schedule'
 
 /** Form state, validation and submission for the weekly booking. */
@@ -29,6 +35,11 @@ export const useBookingStore = defineStore('booking', () => {
     contact: '',
     count: null as SessionCount | null,
     slots: ['', '', ''] as string[],
+    /** The student wants a make-up class on top of their sessions (step 4). */
+    makeupEnabled: false,
+    /** Chosen make-up class slot (kept while unticked, but only sent when ticked). */
+    makeupSlot: '',
+    /** Note about the make-up class, e.g. which session it makes up for. */
     makeup: '',
     /** Explicit, unticked-by-default consent to the privacy notice. */
     consent: false,
@@ -37,10 +48,13 @@ export const useBookingStore = defineStore('booking', () => {
   /** True while changing an existing booking (contact is then locked). */
   const editing = ref(false)
   /**
-   * Slots of the saved booking being changed. They stay allowed after their day is over, so
-   * a student can still edit the rest of the week without giving up a session already held.
+   * The booking being changed, as saved (null for a new one). Sessions left as they were keep
+   * their slot even if it is no longer offered for them or its day is over, so a student can
+   * change one session without having to re-pick the others.
    */
-  const savedSlots = ref<string[]>([])
+  const saved = ref<SavedBooking | null>(null)
+  /** Slots of the saved booking: still selectable once their day is over. */
+  const savedSlots = computed(() => heldSlots(saved.value))
   /** Session tab currently being edited (0-based). */
   const activeSession = ref(0)
   const showErrors = ref(false)
@@ -58,10 +72,13 @@ export const useBookingStore = defineStore('booking', () => {
     },
   )
 
+  /** A make-up class is part of the booking (ticked, and offered this week). */
+  const makeupOn = computed(() => form.makeupEnabled && schedule.offersMakeup)
+
   const errors = computed(() =>
-    validateBooking(form, schedule.config, {
+    validateBooking({ ...form, makeupEnabled: makeupOn.value }, schedule.config, {
       pastDays: schedule.pastDays,
-      kept: savedSlots.value,
+      saved: saved.value,
     }),
   )
   const isValid = computed(() => Object.keys(errors.value).length === 0)
@@ -98,6 +115,12 @@ export const useBookingStore = defineStore('booking', () => {
     }
   }
 
+  /** Picks (or, picked again, clears) the make-up class slot. */
+  function toggleMakeupSlot(slot: string) {
+    form.makeupSlot = form.makeupSlot === slot ? '' : slot
+    submitError.value = ''
+  }
+
   /* Schedules from earlier weeks, suggested once the student enters their phone/email. */
 
   /** Earlier schedules found for `historyFor` (a normalized contact). */
@@ -107,7 +130,7 @@ export const useBookingStore = defineStore('booking', () => {
   /** The suggestion last used to fill the form. */
   const appliedSchedule = ref<PastSchedule | null>(null)
   /** Answers per normalized contact, so retyping the same contact doesn't ask again. */
-  const historyCache = new Map<string, PastSchedule[]>()
+  const historyCache = new Map<string, HistoryResponse>()
 
   const normalizedContact = computed(() => normalizeContact(form.contact)?.value ?? '')
 
@@ -118,7 +141,12 @@ export const useBookingStore = defineStore('booking', () => {
       : [],
   )
 
-  /** Looks up earlier schedules for the contact in the form. Quietly does nothing on failure. */
+  /**
+   * Looks up the contact in the form. If it already has a booking this week, that booking is
+   * loaded to be changed: saving replaces the whole booking, so the sessions the student
+   * doesn't change must already be in the form (or they would be lost). Otherwise offers the
+   * schedules of earlier weeks. Quietly does nothing on failure.
+   */
   async function loadHistory() {
     const contact = normalizedContact.value
     if (!contact || editing.value || contact === historyFor.value) return
@@ -132,9 +160,24 @@ export const useBookingStore = defineStore('booking', () => {
       historyCache.set(contact, found)
     }
     if (contact !== normalizedContact.value) return // the contact changed meanwhile
-    history.value = found
+    if (found.bookedThisWeek && (await loadThisWeek(contact))) return
+    history.value = found.history
     historyFor.value = contact
     historyDismissed.value = false
+  }
+
+  /** Loads this week's booking for `contact` to be changed. False if there is none any more. */
+  async function loadThisWeek(contact: string): Promise<boolean> {
+    let existing: ExistingBooking
+    try {
+      existing = await api.lookupBooking(contact)
+    } catch {
+      historyCache.delete(contact) // e.g. deleted meanwhile: ask again next time
+      return false
+    }
+    // Typed something else meanwhile, or already changing a booking: leave the form alone.
+    if (contact === normalizedContact.value && !editing.value) loadBooking(existing, form.contact)
+    return true
   }
 
   /** How an earlier schedule fits this week (slots full, over or no longer offered drop out). */
@@ -183,7 +226,8 @@ export const useBookingStore = defineStore('booking', () => {
       contact: form.contact.trim(),
       count: form.count,
       slots: form.slots.slice(0, form.count),
-      makeup: form.makeup.trim().slice(0, MAX_MAKEUP_LENGTH),
+      makeupSlot: makeupOn.value ? form.makeupSlot : '',
+      makeup: makeupOn.value ? form.makeup.trim().slice(0, MAX_MAKEUP_LENGTH) : '',
       consent: true,
     }
 
@@ -192,7 +236,9 @@ export const useBookingStore = defineStore('booking', () => {
       const response = await api.submitBooking(payload)
       schedule.setConfig(response.config)
       rememberedName.value = payload.zaloName
-      savedSlots.value = payload.slots
+      saved.value = { slots: payload.slots, makeupSlot: payload.makeupSlot }
+      // This contact now has a booking this week: typed again, it must be loaded, not replaced.
+      historyCache.delete(normalizedContact.value)
       result.value = {
         ...payload,
         updated: response.updated,
@@ -220,7 +266,10 @@ export const useBookingStore = defineStore('booking', () => {
     form.contact = contact.trim()
     form.count = existing.count
     form.slots = [0, 1, 2].map((i) => (i < existing.count ? (existing.slots[i] ?? '') : ''))
-    savedSlots.value = existing.slots.slice(0, existing.count)
+    form.makeupSlot = existing.makeupSlot ?? ''
+    // A note without a slot (bookings from before make-up slots) also means a make-up class.
+    form.makeupEnabled = !!(form.makeupSlot || existing.makeup)
+    saved.value = { slots: form.slots.slice(0, existing.count), makeupSlot: form.makeupSlot }
     form.makeup = existing.makeup
     form.consent = false // re-confirm consent for the changed booking
     activeSession.value = 0
@@ -235,9 +284,11 @@ export const useBookingStore = defineStore('booking', () => {
     form.zaloName = ''
     form.contact = ''
     editing.value = false
-    savedSlots.value = []
+    saved.value = null
     form.count = null
     form.slots = ['', '', '']
+    form.makeupEnabled = false
+    form.makeupSlot = ''
     form.makeup = ''
     form.consent = false
     activeSession.value = 0
@@ -250,6 +301,7 @@ export const useBookingStore = defineStore('booking', () => {
   return {
     form,
     editing,
+    saved,
     savedSlots,
     activeSession,
     showErrors,
@@ -263,6 +315,8 @@ export const useBookingStore = defineStore('booking', () => {
     progress,
     sessionUsing,
     toggleSlot,
+    makeupOn,
+    toggleMakeupSlot,
     suggestions,
     loadHistory,
     fitPastSchedule,

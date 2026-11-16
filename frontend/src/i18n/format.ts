@@ -25,6 +25,11 @@ export function timeRange(slot: Pick<Slot, 'start' | 'end' | 'time'>) {
   return `${hourLabel(slot.start)} – ${hourLabel(slot.end)}`
 }
 
+/** Start time: "18h" / "18:00". Unparsed labels are shown as written. */
+export function startTime(slot: Pick<Slot, 'start' | 'time'>) {
+  return slot.start === null ? slot.time : hourLabel(slot.start)
+}
+
 /** "T2 · 18h – 20h" / "Mon · 18:00 – 20:00" */
 export const slotShort = (slot: Slot) => `${dayName(slot, 'short')} · ${timeRange(slot)}`
 

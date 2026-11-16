@@ -346,4 +346,35 @@ describe('a slot list per session', () => {
       rmSync(partial, { recursive: true, force: true })
     }
   })
+
+  it('migrates existing weeks with make-up classes on every slot they have', async () => {
+    const source = fileURLToPath(new URL('../drizzle', import.meta.url))
+    const partial = mkdtempSync(join(tmpdir(), 'migrations-'))
+    cpSync(source, partial, { recursive: true })
+    const journalPath = join(partial, 'meta', '_journal.json')
+    const journal = JSON.parse(readFileSync(journalPath, 'utf8'))
+    journal.entries = journal.entries.filter((e: { tag: string }) => e.tag < '0010')
+    writeFileSync(journalPath, JSON.stringify(journal))
+
+    const client = new PGlite('memory://')
+    const db = drizzle({ client })
+    try {
+      await migrate(db, { migrationsFolder: partial })
+      await client.exec(`
+        INSERT INTO weeks (id, label, rules, slots1, slots2, slots3)
+        VALUES ('00000000-0000-4000-8000-000000000010', '9/11 - 15/11', '[]',
+                '["${MON}", "${TUE}"]', '["${TUE}", "${THU}"]', '["${MON}"]');
+        INSERT INTO bookings (id, week_label, name_enc, name_hash, contact_enc, contact_hash, session_count, slot1, consent_version, consent_at)
+        VALUES ('00000000-0000-4000-8000-000000000011', '9/11 - 15/11', 'n', 'nh', 'c', 'ch', 1, '${MON}', 'v', now());
+      `)
+      await migrate(db, { migrationsFolder: source })
+      const weeks = await client.query('SELECT slots_makeup FROM weeks')
+      expect(weeks.rows).toEqual([{ slots_makeup: [MON, TUE, THU] }])
+      const bookings = await client.query('SELECT makeup_slot FROM bookings')
+      expect(bookings.rows).toEqual([{ makeup_slot: null }])
+    } finally {
+      await client.close()
+      rmSync(partial, { recursive: true, force: true })
+    }
+  })
 })

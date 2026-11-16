@@ -19,7 +19,7 @@ import {
 
 /**
  * A week's time slots, day by day: add, change or remove slots, and choose for each one
- * which sessions of a booking (1, 2, 3) it is offered for.
+ * which sessions of a booking (1, 2, 3) it is offered for, and whether it takes make-up classes.
  */
 const drafts = defineModel<SlotDraft[]>({ required: true })
 const props = defineProps<{
@@ -40,7 +40,7 @@ const template = reactive({
   days: [] as number[],
   start: '18:00',
   end: '20:00',
-  sessions: [true, true, true] as SessionFlags,
+  sessions: [true, true, true, true] as SessionFlags,
 })
 const templateError = computed(() => {
   const issue = templateIssue(template)

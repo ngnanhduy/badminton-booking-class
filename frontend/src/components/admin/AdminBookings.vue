@@ -96,6 +96,7 @@ function exportCsv() {
     ...(showContacts.value ? [h('contact')] : []),
     h('count'),
     ...[1, 2, 3].map((n) => t('common.session', { n })),
+    h('makeupSlot'),
     h('makeup'),
     h('updated'),
   ]
@@ -106,6 +107,7 @@ function exportCsv() {
     b.slots[0] ?? '',
     b.slots[1] ?? '',
     b.slots[2] ?? '',
+    b.makeupSlot,
     b.makeup,
     formatDateTime(b.updatedAt),
   ])
@@ -227,6 +229,15 @@ function exportCsv() {
                   t('common.sessionShort', { n: i + 1 })
                 }}</span>
                 {{ slotLabel(slot) }}
+              </li>
+              <li
+                v-if="b.makeupSlot"
+                class="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 ring-1 ring-amber-600/15 dark:bg-amber-400/10 dark:text-amber-100 dark:ring-amber-400/20"
+              >
+                <span class="text-amber-600 dark:text-amber-300">{{
+                  t('common.makeupShort')
+                }}</span>
+                {{ slotLabel(b.makeupSlot) }}
               </li>
             </ul>
             <p v-if="b.makeup" class="mt-1.5 text-xs text-zinc-600 dark:text-zinc-400">

@@ -170,6 +170,162 @@ describe('days that are over', () => {
   })
 })
 
+describe('changing one session of a booking', () => {
+  let app: Awaited<ReturnType<typeof createTestApp>>
+  const auth = { authorization: `Bearer ${ADMIN_TOKEN}` }
+  const MON = 'Thứ 2 18h - 20h'
+  const TUE = 'Thứ 3 18h - 20h'
+  const WED = 'Thứ 4 18h - 20h'
+  const THU = 'Thứ 5 18h - 20h'
+  const FRI = 'Thứ 6 18h - 20h'
+  const inject = (method: 'GET' | 'POST' | 'PUT', url: string, payload?: object) =>
+    app.app.inject({ method, url: `/api/v1${url}`, headers: url.startsWith('/admin') ? auth : undefined, payload })
+  const book = (overrides: Record<string, unknown>) => inject('POST', '/bookings', validBooking(overrides))
+  const lan = (overrides: Record<string, unknown>) => ({ zaloName: 'Lan', contact: 'lan@example.com', ...overrides })
+
+  beforeAll(async () => {
+    app = await createTestApp()
+  })
+  afterAll(() => app.close())
+
+  it('keeps the sessions left as they were, even once no longer offered for them or full', async () => {
+    expect((await book({ count: 3, slots: [MON, WED, FRI] })).statusCode).toBe(201)
+    expect((await book(lan({ slots: [WED] }))).statusCode).toBe(201)
+    // Then the admin stops offering Wednesday for session 2 and Friday for session 3, and
+    // allows one place per slot (Wednesday already has two).
+    const [week] = (await inject('GET', '/admin/weeks')).json().weeks
+    const updated = await inject('PUT', `/admin/weeks/${week.id}`, {
+      slots2: week.slots2.filter((s: string) => s !== WED),
+      slots3: week.slots3.filter((s: string) => s !== FRI),
+      capacity: 1,
+    })
+    expect(updated.statusCode).toBe(200)
+
+    // Only session 1 changes: sessions 2 and 3 stay as they were.
+    expect((await book({ count: 3, slots: [TUE, WED, FRI] })).statusCode).toBe(200)
+    const lookup = await inject('POST', '/bookings/lookup', { contact: '0912345678' })
+    expect(lookup.json().booking).toMatchObject({ count: 3, slots: [TUE, WED, FRI] })
+    // Lan keeps her Wednesday place while adding a session.
+    expect((await book(lan({ count: 2, slots: [WED, THU] }))).statusCode).toBe(200)
+
+    // A session that does change follows the week as it is now.
+    expect((await book(lan({ count: 2, slots: [THU, WED] }))).json().error).toMatchObject({
+      code: 'SLOT_INVALID',
+      params: { slot: WED },
+    })
+    expect((await book(lan({ slots: [TUE] }))).json().error).toMatchObject({
+      code: 'SLOT_FULL',
+      params: { slot: TUE },
+    })
+  })
+})
+
+describe('make-up classes', () => {
+  let mk: Awaited<ReturnType<typeof createTestApp>>
+  let weekId: string
+  const auth = { authorization: `Bearer ${ADMIN_TOKEN}` }
+  const MON = 'Thứ 2 18h - 20h'
+  const WED = 'Thứ 4 18h - 20h'
+  const WED_LATE = 'Thứ 4 20h - 22h'
+  const FRI = 'Thứ 6 18h - 20h'
+  const SUN = 'Chủ nhật 10h - 12h'
+  const inject = (method: 'GET' | 'POST' | 'PUT', url: string, payload?: object) =>
+    mk.app.inject({ method, url: `/api/v1${url}`, headers: url.startsWith('/admin') ? auth : undefined, payload })
+  const book = (overrides: Record<string, unknown>) => inject('POST', '/bookings', validBooking(overrides))
+  const errorOf = async (overrides: Record<string, unknown>) => (await book(overrides)).json().error
+  const minhAnh = async () =>
+    (await inject('GET', '/admin/bookings')).json().bookings.find((b: { zaloName: string }) => b.zaloName === 'Minh Anh')
+
+  beforeAll(async () => {
+    mk = await createTestApp()
+    weekId = (await inject('GET', '/admin/weeks')).json().weeks[0].id
+    const res = await inject('PUT', `/admin/weeks/${weekId}`, { slotsMakeup: [WED, FRI] })
+    expect(res.json().config.slotsMakeup).toEqual([WED, FRI])
+  })
+  afterAll(() => mk.close())
+
+  it('a fresh week offers make-up classes, and new weeks copy the list', async () => {
+    const fresh = await createTestApp()
+    try {
+      const schedule = (await fresh.app.inject({ method: 'GET', url: '/api/v1/schedule' })).json()
+      expect(schedule.slotsMakeup).toContain(MON)
+    } finally {
+      await fresh.close()
+    }
+    const created = await inject('POST', '/admin/weeks', { weekLabel: 'Tuần sau' })
+    expect(created.json().week.slotsMakeup).toEqual([WED, FRI])
+  })
+
+  it('books a make-up class on top of the sessions; it takes a place in its slot', async () => {
+    const res = await book({ slots: [MON], makeupSlot: WED, makeup: 'Bù ca 3/11' })
+    expect(res.statusCode).toBe(201)
+    expect(res.json().config.counts).toEqual({ [MON]: 1, [WED]: 1 })
+
+    const lookup = await inject('POST', '/bookings/lookup', { contact: '0912345678' })
+    expect(lookup.json().booking).toMatchObject({ slots: [MON], makeupSlot: WED, makeup: 'Bù ca 3/11' })
+    expect(await minhAnh()).toMatchObject({ count: 1, slots: [MON], makeupSlot: WED })
+    const week = (await inject('GET', '/admin/weeks')).json().weeks.find((w: { id: string }) => w.id === weekId)
+    expect(week).toMatchObject({ bookings: 1, sessions: 2, counts: { [MON]: 1, [WED]: 1 } })
+    // The public members list shows it with their other classes (not labelled as make-up).
+    const members = (await inject('GET', '/members')).json().members
+    expect(members[0]).toMatchObject({ sessions: 2, week: { count: 2, slots: [MON, WED] } })
+  })
+
+  it('only accepts the week’s make-up slots, under the same rules as sessions', async () => {
+    expect(await errorOf({ makeupSlot: SUN })).toMatchObject({ code: 'MAKEUP_SLOT_INVALID', params: { slot: SUN } })
+    expect((await errorOf({ slots: [WED], makeupSlot: WED })).code).toBe('SLOT_DUPLICATE')
+    expect(await errorOf({ slots: [WED_LATE], makeupSlot: WED })).toMatchObject({
+      code: 'SLOT_SAME_DAY',
+      params: { day: 'Thứ 4' },
+    })
+    // A make-up class counts against the slot's capacity like any session.
+    await mk.database.db.execute(sql`UPDATE weeks SET capacity = 1`)
+    try {
+      const lan = { zaloName: 'Lan', contact: 'lan@example.com', slots: ['Thứ 5 18h - 20h'] }
+      expect(await errorOf({ ...lan, makeupSlot: WED })).toMatchObject({ code: 'SLOT_FULL', params: { slot: WED } })
+      expect(await errorOf({ ...lan, slots: [WED] })).toMatchObject({ code: 'SLOT_FULL', params: { slot: WED } })
+      // The student's own make-up place doesn't count against them when they change their booking.
+      expect((await book({ slots: [MON], makeupSlot: WED })).statusCode).toBe(200)
+    } finally {
+      await mk.database.db.execute(sql`UPDATE weeks SET capacity = 8`)
+    }
+  })
+
+  it('can be marked present, follows a slot rename, and dropping it frees the place and its mark', async () => {
+    const id = (await minhAnh()).id
+    const marked = await inject('PUT', '/admin/attendance', { marks: [{ bookingId: id, slot: WED, present: true }] })
+    expect(marked.statusCode).toBe(200)
+
+    const week = (await inject('GET', '/admin/weeks')).json().weeks.find((w: { id: string }) => w.id === weekId)
+    const later = 'Thứ 4 18h30 - 20h30'
+    const swap = (list: string[]) => list.map((s) => (s === WED ? later : s))
+    const renamed = await inject('PUT', `/admin/weeks/${weekId}`, {
+      slots1: swap(week.slots1),
+      slots2: swap(week.slots2),
+      slots3: swap(week.slots3),
+      slotsMakeup: swap(week.slotsMakeup),
+      slotRenames: [{ from: WED, to: later }],
+    })
+    expect(renamed.statusCode).toBe(200)
+    expect((await minhAnh()).makeupSlot).toBe(later)
+    expect((await inject('GET', '/admin/attendance')).json().records).toEqual([
+      expect.objectContaining({ slot: later, present: true }),
+    ])
+
+    const res = await book({ slots: [MON] })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().config.counts).toEqual({ [MON]: 1 })
+    expect((await minhAnh()).makeupSlot).toBe('')
+    expect((await inject('GET', '/admin/attendance')).json().records).toEqual([])
+  })
+
+  it('an admin can stop offering make-up classes', async () => {
+    const res = await inject('PUT', `/admin/weeks/${weekId}`, { slotsMakeup: [] })
+    expect(res.json().config.slotsMakeup).toEqual([])
+    expect((await errorOf({ makeupSlot: FRI })).code).toBe('MAKEUP_SLOT_INVALID')
+  })
+})
+
 describe('lookup and delete (data subject rights)', () => {
   it('finds the booking by contact and returns decrypted data without the contact', async () => {
     await post('/bookings', validBooking({ count: 2, slots: ['Thứ 2 18h - 20h', 'Thứ 3 14h - 16h'] }))
@@ -179,6 +335,7 @@ describe('lookup and delete (data subject rights)', () => {
       zaloName: 'Minh Anh',
       count: 2,
       slots: ['Thứ 2 18h - 20h', 'Thứ 3 14h - 16h'],
+      makeupSlot: '',
       makeup: '',
       weekLabel: seededWeekLabel(),
     })
@@ -234,10 +391,10 @@ describe('booking history (suggestions on the booking form)', () => {
   afterAll(() => hist.close())
 
   it('returns earlier schedules newest first, once each, with no personal data', async () => {
-    expect((await history('0912345678')).json()).toEqual({ history: [] })
+    expect((await history('0912345678')).json()).toEqual({ history: [], bookedThisWeek: false })
     await book({ count: 2, slots: [MON, WED] })
-    // This week's own booking is not history.
-    expect((await history('0912345678')).json()).toEqual({ history: [] })
+    // This week's own booking is not history, but the form learns it exists (to load it).
+    expect((await history('0912345678')).json()).toEqual({ history: [], bookedThisWeek: true })
 
     await openNextWeek('Tuần 2', 7)
     await book({ count: 2, slots: [WED, MON] }) // same times in another order
@@ -254,6 +411,7 @@ describe('booking history (suggestions on the booking form)', () => {
         { weekLabel: 'Tuần 3', count: 1, slots: [FRI] },
         { weekLabel: 'Tuần 2', count: 2, slots: [WED, MON] },
       ],
+      bookedThisWeek: true,
     })
     expect(res.body).not.toMatch(/Minh|Hoa|0912/)
 

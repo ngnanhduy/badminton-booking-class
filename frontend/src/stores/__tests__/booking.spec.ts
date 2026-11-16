@@ -173,8 +173,10 @@ describe('booking store', () => {
     await nextTick()
     booking.toggleSlot(0, 'Thứ 2 18h - 20h')
     booking.toggleSlot(1, 'Thứ 5 14h - 16h')
+    booking.form.makeupEnabled = true
+    booking.toggleMakeupSlot('Thứ 4 18h - 20h')
     booking.form.makeup = 'Bù ca 3/11'
-    await booking.submit()
+    expect(await booking.submit()).toBe(true)
     booking.reset()
 
     const found = await backend.current!.lookupBooking('lan@example.com')
@@ -186,9 +188,93 @@ describe('booking store', () => {
       zaloName: 'Lan',
       count: 2,
       slots: ['Thứ 2 18h - 20h', 'Thứ 5 14h - 16h', ''],
+      makeupEnabled: true,
+      makeupSlot: 'Thứ 4 18h - 20h',
       makeup: 'Bù ca 3/11',
     })
+    expect(booking.savedSlots).toEqual(['Thứ 2 18h - 20h', 'Thứ 5 14h - 16h', 'Thứ 4 18h - 20h'])
     await expect(backend.current!.lookupBooking('0999999999')).rejects.toThrow('Không tìm thấy')
+  })
+
+  it('changes one session and keeps the others, even once the week no longer offers them', async () => {
+    const { booking, schedule } = await setup()
+    booking.form.zaloName = 'Lan'
+    booking.form.contact = 'lan@example.com'
+    booking.form.consent = true
+    booking.form.count = 3
+    await nextTick()
+    booking.toggleSlot(0, 'Thứ 2 18h - 20h')
+    booking.toggleSlot(1, 'Thứ 4 18h - 20h')
+    booking.toggleSlot(2, 'Thứ 6 18h - 20h')
+    expect(await booking.submit()).toBe(true)
+    booking.reset()
+
+    // Since then the admin stopped offering Wednesday for session 2 and Friday for session 3.
+    const config = schedule.config!
+    config.slots2 = config.slots2.filter((s) => s !== 'Thứ 4 18h - 20h')
+    config.slots3 = config.slots3!.filter((s) => s !== 'Thứ 6 18h - 20h')
+
+    booking.loadBooking(await backend.current!.lookupBooking('lan@example.com'), 'lan@example.com')
+    await nextTick()
+    booking.toggleSlot(0, 'Thứ 3 18h - 20h')
+    booking.form.consent = true
+
+    expect(booking.errors).toEqual({})
+    expect(await booking.submit()).toBe(true)
+    expect((await backend.current!.lookupBooking('lan@example.com')).slots).toEqual([
+      'Thứ 3 18h - 20h',
+      'Thứ 4 18h - 20h',
+      'Thứ 6 18h - 20h',
+    ])
+  })
+
+  it('books a make-up class on top of the sessions, only when ticked', async () => {
+    const { booking, schedule } = await setup()
+    expect(schedule.offersMakeup).toBe(true)
+    await fillOneSession(booking)
+    booking.toggleMakeupSlot('Thứ 4 18h - 20h')
+    booking.form.makeup = 'Bù ca 3/11'
+    // Not ticked: neither the make-up slot nor its note is sent.
+    expect(await booking.submit()).toBe(true)
+    expect(booking.result).toMatchObject({ makeupSlot: '', makeup: '' })
+
+    booking.edit()
+    booking.form.makeupEnabled = true
+    expect(booking.errors).toEqual({})
+    const before = schedule.countOf('Thứ 4 18h - 20h')
+    expect(await booking.submit()).toBe(true)
+    expect(booking.result).toMatchObject({
+      slots: ['Thứ 2 18h - 20h'],
+      makeupSlot: 'Thứ 4 18h - 20h',
+      makeup: 'Bù ca 3/11',
+      updated: true,
+    })
+    // The make-up class takes a place in its slot.
+    expect(schedule.countOf('Thứ 4 18h - 20h')).toBe(before + 1)
+  })
+
+  it('needs a make-up slot once ticked, on another day than the sessions', async () => {
+    const { booking } = await setup()
+    await fillOneSession(booking, { slot: 'Thứ 6 18h - 20h' })
+    booking.form.makeupEnabled = true
+    expect(booking.errors.makeup).toBe('Vui lòng chọn ca học bù.')
+    expect(await booking.submit()).toBe(false)
+
+    booking.toggleMakeupSlot('Thứ 6 20h - 22h')
+    expect(booking.errors.makeup).toBe('Buổi 1 đã chọn ngày này. Vui lòng chọn ngày khác.')
+    booking.toggleMakeupSlot('Thứ 7 14h - 16h')
+    expect(booking.errors.makeup).toBeUndefined()
+    expect(await booking.submit()).toBe(true)
+  })
+
+  it('treats a make-up note from before make-up slots as a ticked make-up class', async () => {
+    const { booking } = await setup()
+    booking.loadBooking(
+      { zaloName: 'Lan', count: 1, slots: ['Thứ 2 18h - 20h'], makeup: 'Bù 3/11', weekLabel: '' },
+      '0901234567',
+    )
+    expect(booking.form).toMatchObject({ makeupEnabled: true, makeupSlot: '', makeup: 'Bù 3/11' })
+    expect(booking.errors.makeup).toBe('Vui lòng chọn ca học bù.')
   })
 
   it('requires explicit consent before submitting', async () => {
@@ -293,6 +379,42 @@ describe('schedules from earlier weeks', () => {
       '0901234567',
     )
     expect(booking.suggestions).toEqual([])
+  })
+
+  it('loads the booking a contact already has this week, so changing slot 1 keeps 2 and 3', async () => {
+    const { booking } = await setup()
+    booking.form.zaloName = 'Lan'
+    booking.form.contact = 'lan@example.com'
+    await booking.loadHistory() // nothing booked yet
+    expect(booking.editing).toBe(false)
+    booking.form.consent = true
+    booking.form.count = 3
+    await nextTick()
+    booking.toggleSlot(0, 'Thứ 2 18h - 20h')
+    booking.toggleSlot(1, 'Thứ 4 18h - 20h')
+    booking.toggleSlot(2, 'Thứ 6 18h - 20h')
+    expect(await booking.submit()).toBe(true)
+    booking.reset()
+
+    // Back on the booking form (not "Change a booking"), the same contact is typed again:
+    // saving replaces the booking, so it is loaded first instead of starting empty.
+    booking.form.contact = 'Lan@Example.com'
+    await booking.loadHistory()
+    expect(booking.editing).toBe(true)
+    expect(booking.form).toMatchObject({
+      zaloName: 'Lan',
+      count: 3,
+      slots: ['Thứ 2 18h - 20h', 'Thứ 4 18h - 20h', 'Thứ 6 18h - 20h'],
+    })
+
+    booking.toggleSlot(0, 'Thứ 3 18h - 20h')
+    booking.form.consent = true
+    expect(await booking.submit()).toBe(true)
+    expect((await backend.current!.lookupBooking('lan@example.com')).slots).toEqual([
+      'Thứ 3 18h - 20h',
+      'Thứ 4 18h - 20h',
+      'Thứ 6 18h - 20h',
+    ])
   })
 
   it('ignores an answer for a contact that was changed while waiting', async () => {

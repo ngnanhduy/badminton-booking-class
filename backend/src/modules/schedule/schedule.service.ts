@@ -14,6 +14,8 @@ export interface ScheduleDto {
   slots1: string[]
   slots2: string[]
   slots3: string[]
+  /** Slot labels offered for a make-up class (empty = none this week). */
+  slotsMakeup: string[]
   capacity: number | null
   /** The admin's on/off switch. */
   open: boolean
@@ -36,19 +38,27 @@ export interface ScheduleDto {
 
 type Reader = Pick<Db, 'select'>
 
-/** Bookings per slot for a week, optionally ignoring one booking (the one being updated). */
+/**
+ * Places taken per slot for a week (make-up classes take a place too), optionally ignoring one
+ * booking (the one being updated).
+ */
 export async function countSlots(db: Reader, weekLabel: string, excludeId?: string) {
   const where = excludeId
     ? and(eq(bookings.weekLabel, weekLabel), ne(bookings.id, excludeId))
     : eq(bookings.weekLabel, weekLabel)
   const rows = await db
-    .select({ slot1: bookings.slot1, slot2: bookings.slot2, slot3: bookings.slot3 })
+    .select({
+      slot1: bookings.slot1,
+      slot2: bookings.slot2,
+      slot3: bookings.slot3,
+      makeupSlot: bookings.makeupSlot,
+    })
     .from(bookings)
     .where(where)
 
   const counts: Record<string, number> = {}
   for (const row of rows) {
-    for (const slot of [row.slot1, row.slot2, row.slot3]) {
+    for (const slot of [row.slot1, row.slot2, row.slot3, row.makeupSlot]) {
       if (slot) counts[slot] = (counts[slot] ?? 0) + 1
     }
   }
@@ -66,6 +76,7 @@ export async function getSchedule(db: Reader, config: AppConfig): Promise<Schedu
     slots1: w.slots1,
     slots2: w.slots2,
     slots3: w.slots3,
+    slotsMakeup: w.slotsMakeup,
     capacity: w.capacity,
     open: w.open,
     opensAt: w.opensAt?.toISOString() ?? null,

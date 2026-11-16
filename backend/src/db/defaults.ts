@@ -1,4 +1,4 @@
-/** Slots offered for sessions 2 and 3 of the first week (they can differ later). */
+/** Slots offered for sessions 2, 3 and make-up classes of the first week (they can differ later). */
 const LATER_SESSION_SLOTS = [
   'Thứ 2 18h - 20h',
   'Thứ 2 20h - 22h',
@@ -41,5 +41,6 @@ export const DEFAULT_WEEK = {
   ],
   slots2: LATER_SESSION_SLOTS,
   slots3: LATER_SESSION_SLOTS,
+  slotsMakeup: LATER_SESSION_SLOTS,
   capacity: 8 as number | null,
 }

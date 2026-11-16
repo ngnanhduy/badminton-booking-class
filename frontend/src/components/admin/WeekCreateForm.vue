@@ -81,6 +81,7 @@ async function create() {
         slots1: source.slots1,
         slots2: source.slots2,
         slots3: source.slots3,
+        slotsMakeup: source.slotsMakeup,
         capacity: source.capacity,
       }),
       open: form.open,

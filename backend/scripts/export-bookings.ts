@@ -41,7 +41,7 @@ const csvCell = (v: unknown) => {
   return `"${s.replace(/"/g, '""')}"`
 }
 
-const header = ['Tuần', 'Tên Zalo', ...(args.contacts ? ['Liên hệ'] : []), 'Số buổi', 'Buổi 1', 'Buổi 2', 'Buổi 3', 'Buổi bù', 'Đồng ý (phiên bản)', 'Đồng ý lúc', 'Cập nhật']
+const header = ['Tuần', 'Tên Zalo', ...(args.contacts ? ['Liên hệ'] : []), 'Số buổi', 'Buổi 1', 'Buổi 2', 'Buổi 3', 'Ca học bù', 'Ghi chú học bù', 'Đồng ý (phiên bản)', 'Đồng ý lúc', 'Cập nhật']
 const lines = rows.map((row) => {
   const b = decryptBooking(keyring, row)
   return [
@@ -52,6 +52,7 @@ const lines = rows.map((row) => {
     b.slots[0],
     b.slots[1],
     b.slots[2],
+    b.makeupSlot,
     b.makeup,
     b.consentVersion,
     b.consentAt,

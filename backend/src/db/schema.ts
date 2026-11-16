@@ -37,6 +37,11 @@ export const weeks = pgTable(
     slots1: jsonb('slots1').$type<string[]>().notNull(),
     slots2: jsonb('slots2').$type<string[]>().notNull(),
     slots3: jsonb('slots3').$type<string[]>().notNull(),
+    /**
+     * Slot labels offered for a make-up class: one optional extra session a student can add to
+     * their booking. Empty = no make-up classes this week.
+     */
+    slotsMakeup: jsonb('slots_makeup').$type<string[]>().notNull().default([]),
     capacity: integer('capacity'),
     /** The admin's registration switch. */
     open: boolean('open').notNull().default(false),
@@ -81,6 +86,9 @@ export const bookings = pgTable(
     slot1: text('slot1').notNull(),
     slot2: text('slot2'),
     slot3: text('slot3'),
+    /** Make-up class slot (one of the week's `slotsMakeup`), or null for none. */
+    makeupSlot: text('makeup_slot'),
+    /** Free-text note about the make-up class (e.g. which session it makes up for). */
     makeupEnc: text('makeup_enc'),
     /** Version of the privacy notice the student agreed to, and when (consent record). */
     consentVersion: text('consent_version').notNull(),

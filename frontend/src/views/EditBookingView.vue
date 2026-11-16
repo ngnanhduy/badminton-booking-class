@@ -166,6 +166,7 @@ async function deleteBooking() {
             class="mt-4"
             :slots="found.slots"
             :week-label="found.weekLabel"
+            :makeup-slot="found.makeupSlot"
             :makeup="found.makeup"
           />
           <BaseButton

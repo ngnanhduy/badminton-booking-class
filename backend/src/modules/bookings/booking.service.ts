@@ -20,6 +20,9 @@ export interface BookingView {
   zaloName: string
   count: 1 | 2 | 3
   slots: string[]
+  /** Make-up class slot, or '' for none. */
+  makeupSlot: string
+  /** Free-text note about the make-up class. */
   makeup: string
   consentVersion: string
   consentAt: string
@@ -51,6 +54,7 @@ export function decryptBooking(keyring: Keyring, row: BookingRow): BookingView {
     zaloName: decrypt(keyring, row.nameEnc, aad(row.id, 'name')),
     count,
     slots: [row.slot1, row.slot2, row.slot3].slice(0, count).map((s) => s ?? ''),
+    makeupSlot: row.makeupSlot ?? '',
     makeup: row.makeupEnc ? decrypt(keyring, row.makeupEnc, aad(row.id, 'makeup')) : '',
     consentVersion: row.consentVersion,
     consentAt: row.consentAt.toISOString(),
@@ -91,6 +95,17 @@ export async function submitBooking(deps: AppDeps, input: SubmitBookingInput) {
     }
     if (status === 'closed') throw conflict('BOOKING_CLOSED', 'Đăng ký tuần này đã đóng.')
 
+    const [existing] = await tx
+      .select()
+      .from(bookings)
+      .where(and(eq(bookings.weekLabel, s.weekLabel), eq(bookings.contactHash, contactHash)))
+    // When a booking is changed, the sessions left as they were keep their slot as-is, so a
+    // student can change one session without having to re-pick the others: even if the admin
+    // has since stopped offering that slot for the session, it is full, or its day is over.
+    const savedSessions = existing ? [existing.slot1, existing.slot2, existing.slot3] : []
+    /** Slots the student already has a place in (sessions and make-up class). */
+    const held = existing ? [...savedSessions, existing.makeupSlot] : []
+
     const slots = input.slots.slice(0, input.count)
     for (let i = 0; i < input.count; i++) {
       const slot = slots[i]
@@ -98,15 +113,23 @@ export async function submitBooking(deps: AppDeps, input: SubmitBookingInput) {
         throw badRequest('SLOT_REQUIRED', `Vui lòng chọn ca cho Buổi ${i + 1}.`, { session: i + 1 })
       }
       const allowed = [s.slots1, s.slots2, s.slots3][i]!
-      if (!allowed.includes(slot)) {
+      if (!allowed.includes(slot) && slot !== savedSessions[i]) {
         throw badRequest('SLOT_INVALID', `Ca "${slot}" không hợp lệ.`, { slot })
       }
     }
-    if (new Set(slots).size !== slots.length) {
+    // An optional make-up class: one more slot from the week's make-up list, under the same
+    // rules as a session (its own slot and day, not over, not full).
+    const makeupSlot = input.makeupSlot || null
+    if (makeupSlot && !s.slotsMakeup.includes(makeupSlot) && makeupSlot !== existing?.makeupSlot) {
+      throw badRequest('MAKEUP_SLOT_INVALID', `Ca học bù "${makeupSlot}" không hợp lệ.`, { slot: makeupSlot })
+    }
+    const booked = makeupSlot ? [...slots, makeupSlot] : slots
+
+    if (new Set(booked).size !== booked.length) {
       throw badRequest('SLOT_DUPLICATE', 'Các buổi không được trùng ca.')
     }
-    // With 2+ sessions, each one must be on a different day.
-    const sameDay = findSameDay(slots)
+    // With 2+ sessions (make-up class included), each one must be on a different day.
+    const sameDay = findSameDay(booked)
     if (sameDay) {
       const day = dayLabel(sameDay)
       throw badRequest('SLOT_SAME_DAY', `Các buổi phải vào các ngày khác nhau (${day} bị chọn 2 lần).`, {
@@ -114,20 +137,14 @@ export async function submitBooking(deps: AppDeps, input: SubmitBookingInput) {
       })
     }
 
-    const [existing] = await tx
-      .select()
-      .from(bookings)
-      .where(and(eq(bookings.weekLabel, s.weekLabel), eq(bookings.contactHash, contactHash)))
-
     // A day that is over can't be booked any more (on Tuesday, Monday's slots are closed).
     // Slots the student already holds may stay, so they can still change the rest of the week.
     const today = localTime(deps.now(), config.CLASS_TIMEZONE).date
     const startDate = week.startDate ?? startDateFromLabel(week.label, today)
     if (startDate) {
-      const kept = existing ? [existing.slot1, existing.slot2, existing.slot3] : []
-      const past = slots.find((slot) => {
+      const past = booked.find((slot) => {
         const date = slotDate(startDate, slot)
-        return date !== null && date < today && !kept.includes(slot)
+        return date !== null && date < today && !held.includes(slot)
       })
       if (past) {
         throw badRequest('SLOT_PAST', `Ca "${past}" thuộc ngày đã qua. Vui lòng chọn ca khác.`, { slot: past })
@@ -156,7 +173,10 @@ export async function submitBooking(deps: AppDeps, input: SubmitBookingInput) {
 
     if (s.capacity) {
       const { counts } = await countSlots(tx, s.weekLabel, existing?.id)
-      for (const slot of slots) {
+      for (const slot of booked) {
+        // Keeping a place the student already has takes no new one, even if the slot is now
+        // over capacity (e.g. the admin lowered it).
+        if (held.includes(slot)) continue
         if ((counts[slot] ?? 0) >= s.capacity) {
           throw conflict('SLOT_FULL', `Ca "${slot}" đã đủ người, vui lòng chọn ca khác.`, { slot })
         }
@@ -175,6 +195,7 @@ export async function submitBooking(deps: AppDeps, input: SubmitBookingInput) {
       slot1: slots[0]!,
       slot2: slots[1] ?? null,
       slot3: slots[2] ?? null,
+      makeupSlot,
       makeupEnc: input.makeup ? encrypt(keyring, input.makeup, aad(id, 'makeup')) : null,
       consentVersion: config.PRIVACY_POLICY_VERSION,
       consentAt: now,
@@ -186,7 +207,7 @@ export async function submitBooking(deps: AppDeps, input: SubmitBookingInput) {
       // Attendance marked for slots the student no longer booked would be meaningless.
       await tx
         .delete(attendance)
-        .where(and(eq(attendance.bookingId, id), notInArray(attendance.slot, slots)))
+        .where(and(eq(attendance.bookingId, id), notInArray(attendance.slot, booked)))
     } else await tx.insert(bookings).values({ id, ...values, createdAt: now })
 
     await audit(tx, {
@@ -194,7 +215,7 @@ export async function submitBooking(deps: AppDeps, input: SubmitBookingInput) {
       action: existing ? 'booking.update' : 'booking.create',
       bookingId: id,
       weekLabel: s.weekLabel,
-      detail: { sessionCount: input.count, contactKind: contact.kind },
+      detail: { sessionCount: input.count, makeup: !!makeupSlot, contactKind: contact.kind },
     })
 
     return { updated: !!existing, id }
@@ -217,6 +238,7 @@ export async function lookupBooking(deps: AppDeps, rawContact: string) {
     zaloName: view.zaloName,
     count: view.count,
     slots: view.slots,
+    makeupSlot: view.makeupSlot,
     makeup: view.makeup,
     weekLabel: view.weekLabel,
   }
@@ -235,13 +257,22 @@ const HISTORY_MAX = 3
 
 /**
  * The student's schedules from earlier weeks (newest first, one per distinct set of slots),
- * so the booking form can offer to book the same times again. Only slot labels are returned
- * (no name, notes or contact), and nothing is decrypted.
+ * so the booking form can offer to book the same times again, and whether they already have a
+ * booking this week (the form then loads it to be changed, since saving replaces it). Only
+ * slot labels are returned (no name, notes or contact), and nothing is decrypted.
  */
-export async function bookingHistory(deps: AppDeps, rawContact: string): Promise<PastSchedule[]> {
+export async function bookingHistory(
+  deps: AppDeps,
+  rawContact: string,
+): Promise<{ history: PastSchedule[]; bookedThisWeek: boolean }> {
   const { db, keyring } = deps
   const hash = contactIndex(keyring, rawContact)
   const current = (await getCurrentWeek(db)).label
+  const [thisWeek] = await db
+    .select({ id: bookings.id })
+    .from(bookings)
+    .where(and(eq(bookings.contactHash, hash), eq(bookings.weekLabel, current)))
+    .limit(1)
   const rows = await db
     .select({
       weekLabel: bookings.weekLabel,
@@ -272,7 +303,7 @@ export async function bookingHistory(deps: AppDeps, rawContact: string): Promise
   if (history.length) {
     await audit(db, { actor: 'student', action: 'booking.history', detail: { weeks: history.length } })
   }
-  return history
+  return { history, bookedThisWeek: !!thisWeek }
 }
 
 /** Deletes this week's booking for a contact (right to withdraw consent / erasure). */

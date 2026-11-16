@@ -105,3 +105,10 @@ export function sessionSlots(
   // Older servers have one list for sessions 2 and 3.
   return [config.slots1, config.slots2, config.slots3 ?? config.slots2]
 }
+
+/** Slot labels offered for a make-up class (older servers have none). */
+export function makeupSlots(
+  config: Pick<ScheduleConfig, 'slotsMakeup'> | null | undefined,
+): string[] {
+  return config?.slotsMakeup ?? []
+}

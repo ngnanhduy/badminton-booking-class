@@ -7,7 +7,7 @@ import BaseAlert from '@/components/ui/BaseAlert.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import { useBookingStore } from '@/stores/booking'
 import { useScheduleStore } from '@/stores/schedule'
-import { parseSlot } from '@/utils/slots'
+import { groupByDay, makeupSlots, parseSlot, sessionSlots } from '@/utils/slots'
 import { MAX_MAKEUP_LENGTH, MAX_NAME_LENGTH } from '@/utils/validation'
 import FormStep from './FormStep.vue'
 import PastScheduleSuggestions from './PastScheduleSuggestions.vue'
@@ -46,29 +46,48 @@ const slotsComplete = computed(
     SESSION_INDEXES.every((i) => !slotError(i)),
 )
 
-const activeDays = computed(() => schedule.daysForSession(booking.activeSession))
+/** Offered slots by day, plus the saved booking's slot if it is no longer offered (it may stay). */
+function withSaved(offered: readonly string[], saved: string | undefined) {
+  return groupByDay(saved && !offered.includes(saved) ? [...offered, saved] : offered)
+}
+const activeDays = computed(() =>
+  withSaved(
+    sessionSlots(schedule.config)[booking.activeSession] ?? [],
+    booking.saved?.slots[booking.activeSession],
+  ),
+)
+const makeupDays = computed(() =>
+  withSaved(makeupSlots(schedule.config), booking.saved?.makeupSlot),
+)
 
-/** Slots used by the other sessions, so they can't be picked twice. */
-const takenBy = computed(() => {
-  const map: Record<string, number> = {}
+/**
+ * Slots and weekdays used by every session except `except` (and by the make-up class), each
+ * with that session's name: a slot can't be picked twice, and there is one session per day.
+ */
+function usedBy(except: number | 'makeup') {
+  const slots: Record<string, string> = {}
+  const days: Record<number, string> = {}
+  const use = (slot: string, name: string) => {
+    if (!slot) return
+    slots[slot] ??= name
+    const { dayIndex } = parseSlot(slot)
+    if (dayIndex < 7) days[dayIndex] ??= name
+  }
   booking.form.slots.forEach((slot, index) => {
-    if (slot && index !== booking.activeSession && index < (booking.form.count ?? 0)) {
-      map[slot] = index + 1
+    if (index !== except && index < (booking.form.count ?? 0)) {
+      use(slot, t('common.session', { n: index + 1 }))
     }
   })
-  return map
-})
+  if (except !== 'makeup' && booking.makeupOn) use(booking.form.makeupSlot, t('common.makeup'))
+  return { slots, days }
+}
+const sessionUse = computed(() => usedBy(booking.activeSession))
+const makeupUse = computed(() => usedBy('makeup'))
 
-/** Weekdays used by the other sessions (dayIndex → session number): one session per day. */
-const dayTakenBy = computed(() => {
-  const map: Record<number, number> = {}
-  booking.form.slots.forEach((slot, index) => {
-    if (!slot || index === booking.activeSession || index >= (booking.form.count ?? 0)) return
-    const { dayIndex } = parseSlot(slot)
-    if (dayIndex < 7 && !(dayIndex in map)) map[dayIndex] = index + 1
-  })
-  return map
-})
+const makeupError = computed(() => (booking.showErrors ? booking.errors.makeup : undefined))
+const makeupComplete = computed(
+  () => booking.makeupOn && !!booking.form.makeupSlot && !booking.errors.makeup,
+)
 
 async function onSubmit() {
   const ok = await booking.submit()
@@ -269,8 +288,8 @@ async function onSubmit() {
               :selected="booking.form.slots[booking.activeSession] ?? ''"
               :capacity="schedule.capacity"
               :counts="schedule.config?.counts ?? {}"
-              :taken-by="takenBy"
-              :day-taken-by="dayTakenBy"
+              :taken-by="sessionUse.slots"
+              :day-taken-by="sessionUse.days"
               :past-days="schedule.pastDays"
               :kept="booking.savedSlots"
               @select="booking.toggleSlot(booking.activeSession, $event)"
@@ -306,28 +325,89 @@ async function onSubmit() {
       </template>
     </FormStep>
 
-    <!-- 4. Make-up session -->
+    <!-- 4. Make-up class: one extra session, from the week's make-up slots (if it has any) -->
     <FormStep
+      v-if="schedule.offersMakeup"
       :step="4"
       heading-id="step-makeup"
       :title="t('form.step4Title')"
       :description="t('form.step4Description')"
       optional
-      :complete="!!booking.form.makeup.trim()"
+      :complete="makeupComplete"
     >
-      <label for="makeup" class="sr-only">{{ t('form.step4Title') }}</label>
-      <textarea
-        id="makeup"
-        v-model="booking.form.makeup"
-        name="makeup"
-        rows="3"
-        :maxlength="MAX_MAKEUP_LENGTH"
-        :placeholder="t('form.makeupPlaceholder')"
-        class="block w-full resize-y rounded-xl bg-white px-4 py-3 text-base text-zinc-900 ring-1 ring-zinc-950/10 transition outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-950/40 dark:text-white dark:ring-white/10 dark:placeholder:text-zinc-500 dark:focus:ring-brand-400"
-      />
-      <p class="mt-2 text-right text-xs text-zinc-400 tabular-nums">
-        {{ booking.form.makeup.length }}/{{ MAX_MAKEUP_LENGTH }}
-      </p>
+      <label
+        class="flex cursor-pointer items-start gap-3 rounded-xl p-3.5 ring-1 transition"
+        :class="
+          booking.form.makeupEnabled
+            ? 'bg-amber-50/70 ring-amber-500/30 dark:bg-amber-400/[0.07] dark:ring-amber-400/25'
+            : 'bg-zinc-50 ring-zinc-950/5 hover:ring-zinc-950/10 dark:bg-white/[0.03] dark:ring-white/10'
+        "
+      >
+        <input
+          v-model="booking.form.makeupEnabled"
+          type="checkbox"
+          name="makeupEnabled"
+          class="mt-0.5 size-5 shrink-0 cursor-pointer rounded accent-amber-500"
+          aria-describedby="makeup-toggle-hint"
+          data-testid="makeup-enabled"
+        />
+        <span class="min-w-0">
+          <span class="block text-sm font-medium text-zinc-900 dark:text-white">
+            {{ t('form.makeupToggle') }}
+          </span>
+          <span
+            id="makeup-toggle-hint"
+            class="mt-0.5 block text-xs text-zinc-500 dark:text-zinc-400"
+          >
+            {{ t('form.makeupToggleHint') }}
+          </span>
+        </span>
+      </label>
+
+      <div v-if="booking.form.makeupEnabled" class="mt-5" data-testid="makeup-section">
+        <p id="makeup-pick" class="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          {{ t('form.makeupPick') }} <span class="text-rose-500">*</span>
+        </p>
+        <div role="group" aria-labelledby="makeup-pick" :data-invalid="!!makeupError">
+          <SlotPicker
+            panel-id="makeup-panel"
+            :days="makeupDays"
+            :selected="booking.form.makeupSlot"
+            :capacity="schedule.capacity"
+            :counts="schedule.config?.counts ?? {}"
+            :taken-by="makeupUse.slots"
+            :day-taken-by="makeupUse.days"
+            :past-days="schedule.pastDays"
+            :kept="booking.savedSlots"
+            @select="booking.toggleMakeupSlot($event)"
+          />
+        </div>
+        <p v-if="makeupError" class="mt-3 text-sm font-medium text-rose-600 dark:text-rose-400">
+          {{ makeupError }}
+        </p>
+
+        <label
+          for="makeup"
+          class="mt-5 mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+        >
+          {{ t('form.makeupNoteLabel') }}
+          <span class="font-normal text-zinc-400 dark:text-zinc-500">
+            ({{ t('common.optional') }})
+          </span>
+        </label>
+        <textarea
+          id="makeup"
+          v-model="booking.form.makeup"
+          name="makeup"
+          rows="2"
+          :maxlength="MAX_MAKEUP_LENGTH"
+          :placeholder="t('form.makeupPlaceholder')"
+          class="block w-full resize-y rounded-xl bg-white px-4 py-3 text-base text-zinc-900 ring-1 ring-zinc-950/10 transition outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-950/40 dark:text-white dark:ring-white/10 dark:placeholder:text-zinc-500 dark:focus:ring-brand-400"
+        />
+        <p class="mt-2 text-right text-xs text-zinc-400 tabular-nums">
+          {{ booking.form.makeup.length }}/{{ MAX_MAKEUP_LENGTH }}
+        </p>
+      </div>
     </FormStep>
 
     <!-- Consent (Vietnam PDP Law: explicit, unticked by default, purpose-specific) -->

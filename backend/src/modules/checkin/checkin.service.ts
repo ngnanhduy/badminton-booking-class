@@ -28,7 +28,7 @@ interface TodaySession {
 
 /**
  * A student marks themselves present with their phone/email. Allowed only for a session
- * they booked for today, from CHECKIN_EARLY_MINUTES before it starts until it ends (class
+ * (or make-up class) they booked for today, from CHECKIN_EARLY_MINUTES before it starts until it ends (class
  * time zone), so the attendance list still matches the bookings.
  */
 export async function selfCheckIn(deps: AppDeps, rawContact: string, now = new Date()): Promise<CheckInResult> {
@@ -49,6 +49,7 @@ export async function selfCheckIn(deps: AppDeps, rawContact: string, now = new D
     const offset = daysBetween(start, today.date)
     if (offset < 0 || offset > 6) continue
     const booked = [booking.slot1, booking.slot2, booking.slot3].slice(0, booking.sessionCount)
+    if (booking.makeupSlot) booked.push(booking.makeupSlot)
     for (const slot of booked) {
       if (!slot || slotDate(start, slot) !== today.date) continue
       const time = slotTime(slot)

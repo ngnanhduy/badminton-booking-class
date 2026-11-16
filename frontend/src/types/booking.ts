@@ -28,6 +28,11 @@ export interface ScheduleConfig {
   slots2: string[]
   /** Slot labels allowed for session 3 (older servers leave it out: use `slots2`). */
   slots3?: string[]
+  /**
+   * Slot labels offered for a make-up class: one optional extra session on top of the booking.
+   * Empty (or left out by older servers) = no make-up classes this week.
+   */
+  slotsMakeup?: string[]
   /** Max students per slot, or `null` for unlimited. */
   capacity: number | null
   /** The admin's on/off switch. Use `status` to know whether bookings are accepted now. */
@@ -37,7 +42,7 @@ export interface ScheduleConfig {
   closesAt: string | null
   /** Whether bookings are accepted (switch + window), computed by the server. */
   status: RegistrationStatus
-  /** Number of bookings per slot label for the current week. */
+  /** Places taken per slot label for the current week (make-up classes included). */
   counts: Record<string, number>
   /** Self check-in opens this many minutes before a class starts. */
   checkInEarlyMinutes: number
@@ -58,7 +63,9 @@ export interface BookingPayload {
   count: SessionCount
   /** Chosen slot label per session, in order (length === count). */
   slots: string[]
-  /** Optional make-up session note. */
+  /** Optional make-up class: one of `slotsMakeup`, or '' for none. */
+  makeupSlot: string
+  /** Optional note about the make-up class (e.g. which session it makes up for). */
   makeup: string
   /** Explicit consent to the privacy notice (required by Vietnam's PDP Law). */
   consent: true
@@ -80,6 +87,8 @@ export interface ExistingBooking {
   zaloName: string
   count: SessionCount
   slots: string[]
+  /** Make-up class slot, or '' for none (older servers leave it out). */
+  makeupSlot?: string
   makeup: string
   weekLabel: string
 }
@@ -95,6 +104,11 @@ export interface PastSchedule {
 export interface HistoryResponse {
   /** Newest first, one per distinct set of slots (at most 3). Empty for a new student. */
   history: PastSchedule[]
+  /**
+   * The contact already has a booking this week: saving the form replaces it, so the form
+   * loads it to be changed instead. Older servers leave it out.
+   */
+  bookedThisWeek?: boolean
 }
 
 /** Result of a self check-in. */
@@ -162,9 +176,9 @@ export interface Member {
   contact?: string
   /** Number of weeks booked. */
   weeks: number
-  /** Sessions booked in total. */
+  /** Sessions booked in total (make-up classes included). */
   sessions: number
-  /** Their booking in the chosen week, or null. */
+  /** Their classes in the chosen week (a make-up class included, not marked as one), or null. */
   week: { count: number; slots: string[] } | null
   lastWeekLabel: string
   firstBookedAt: string

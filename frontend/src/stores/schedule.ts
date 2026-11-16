@@ -5,7 +5,7 @@ import { useIntervalFn, useNow } from '@vueuse/core'
 import { t } from '@/i18n'
 import { api, errorMessage } from '@/services/api'
 import type { RegistrationStatus, ScheduleConfig } from '@/types/booking'
-import { groupByDay, mergeSlots, sessionSlots } from '@/utils/slots'
+import { groupByDay, makeupSlots, mergeSlots, sessionSlots } from '@/utils/slots'
 import { fromDateInput, pastWeekdays, toDateInput } from '@/utils/week'
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
@@ -47,7 +47,13 @@ export const useScheduleStore = defineStore('schedule', () => {
   const capacity = computed(() => config.value?.capacity ?? null)
   /** Slots offered for each session, grouped by day: [session 1, session 2, session 3]. */
   const sessionDays = computed(() => sessionSlots(config.value).map((list) => groupByDay(list)))
-  const allSlots = computed(() => mergeSlots(...sessionSlots(config.value)))
+  /** Slots offered for a make-up class, grouped by day (empty = no make-up classes). */
+  const makeupDays = computed(() => groupByDay(makeupSlots(config.value)))
+  const offersMakeup = computed(() => makeupDays.value.length > 0)
+  /** Every slot of the week: sessions and make-up classes. */
+  const allSlots = computed(() =>
+    mergeSlots(...sessionSlots(config.value), makeupSlots(config.value)),
+  )
   const totalSeatsTaken = computed(() =>
     Object.values(config.value?.counts ?? {}).reduce((sum, n) => sum + n, 0),
   )
@@ -105,6 +111,8 @@ export const useScheduleStore = defineStore('schedule', () => {
     pastDays,
     capacity,
     sessionDays,
+    makeupDays,
+    offersMakeup,
     allSlots,
     totalSeatsTaken,
     daysForSession,

@@ -15,14 +15,14 @@ const props = withDefaults(
     selected: boolean
     count: number
     capacity: number | null
-    /** 1-based number of another session already using this slot, or 0. */
-    takenBy: number
-    /** 1-based number of another session already on this slot's day, or 0. */
-    sameDayAs?: number
+    /** Name of another session already using this slot ("Buổi 2", "Buổi bù"), or ''. */
+    takenBy?: string
+    /** Name of another session already on this slot's day, or ''. */
+    sameDayAs?: string
     /** The slot's day is already over this week, so it can't be picked. */
     past?: boolean
   }>(),
-  { sameDayAs: 0, past: false },
+  { takenBy: '', sameDayAs: '', past: false },
 )
 
 const emit = defineEmits<{ select: [value: string] }>()
@@ -31,20 +31,17 @@ const full = computed(() => props.capacity !== null && props.count >= props.capa
 const filling = computed(
   () => props.capacity !== null && !full.value && props.count / props.capacity >= 0.75,
 )
-const blocked = computed(() => props.takenBy > 0 || props.sameDayAs > 0 || props.past)
+const blocked = computed(() => !!props.takenBy || !!props.sameDayAs || props.past)
 const disabled = computed(() => !props.selected && (full.value || blocked.value))
 
 /** Status line. `short` fits a narrow chip; `full` (when set) is read by screen readers. */
 const meta = computed<{ short: string; full?: string }>(() => {
   if (props.takenBy) {
-    return {
-      short: t('common.session', { n: props.takenBy }),
-      full: t('slot.takenBy', { n: props.takenBy }),
-    }
+    return { short: props.takenBy, full: t('slot.takenBy', { session: props.takenBy }) }
   }
   if (props.past && !props.selected) return { short: t('slot.past'), full: t('slot.pastDay') }
   if (props.sameDayAs && !props.selected) {
-    return { short: t('slot.sameDay'), full: t('slot.sameDayAs', { n: props.sameDayAs }) }
+    return { short: t('slot.sameDay'), full: t('slot.sameDayAs', { session: props.sameDayAs }) }
   }
   if (full.value && !props.selected) return { short: t('slot.full') }
   if (props.capacity !== null) {

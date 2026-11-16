@@ -23,12 +23,13 @@ export const bookingRoutes: FastifyPluginAsync = async (app) => {
   })
 
   /**
-   * Schedules booked in earlier weeks, for the booking form to suggest. Called as the student
-   * types their contact, so it gets a little more room than lookup/delete.
+   * Schedules booked in earlier weeks, for the booking form to suggest, and whether this week
+   * is already booked. Called as the student types their contact, so it gets a little more
+   * room than lookup/delete.
    */
   app.post('/bookings/history', { config: { rateLimit: { max: 20, timeWindow: '10 minutes' } } }, async (request) => {
     const { contact } = ContactBody.parse(request.body)
-    return { history: await bookingHistory(app.deps, contact) }
+    return bookingHistory(app.deps, contact)
   })
 
   /** Delete this week's booking and its personal data. */

@@ -34,11 +34,14 @@ const selfMarked = reactive(new Set<string>())
 
 const keyOf = (bookingId: string, slot: string) => `${bookingId}|${slot}`
 
-/** Every slot someone booked this week, Mon → Sun. */
-const slots = computed(() => mergeSlots(...rows.value.map((b) => b.slots)))
+/** Every class a booking comes to: its sessions, then its make-up class. */
+const classesOf = (b: AdminBooking) => (b.makeupSlot ? [...b.slots, b.makeupSlot] : b.slots)
+
+/** Every slot someone booked this week (make-up classes included), Mon → Sun. */
+const slots = computed(() => mergeSlots(...rows.value.map(classesOf)))
 
 function membersIn(slot: string) {
-  return rows.value.filter((b) => b.slots.includes(slot))
+  return rows.value.filter((b) => classesOf(b).includes(slot))
 }
 
 function tally(slot: string) {
@@ -72,7 +75,11 @@ const members = computed(() => {
     .map((b) => ({
       id: b.id,
       name: b.zaloName,
-      session: b.slots.indexOf(slot) + 1,
+      /** Coming for their make-up class (not one of their sessions). */
+      makeup: !b.slots.includes(slot),
+      session: b.slots.includes(slot)
+        ? t('common.session', { n: b.slots.indexOf(slot) + 1 })
+        : t('common.makeup'),
       key: keyOf(b.id, slot),
       status: marks.get(keyOf(b.id, slot)),
       self: selfMarked.has(keyOf(b.id, slot)),
@@ -301,7 +308,10 @@ function markAllPresent() {
               <span class="min-w-0 flex-1">
                 <span class="block truncate font-medium">{{ m.name }}</span>
                 <span class="block text-xs text-zinc-500 dark:text-zinc-400">
-                  {{ t('common.session', { n: m.session }) }}
+                  <span v-if="m.makeup" class="font-medium text-amber-700 dark:text-amber-300">
+                    {{ m.session }}
+                  </span>
+                  <template v-else>{{ m.session }}</template>
                   <template v-if="m.self"> · {{ t('adminAttendance.selfCheckedIn') }}</template>
                 </span>
               </span>

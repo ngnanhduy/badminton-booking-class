@@ -150,7 +150,7 @@ Bookings are grouped by week, so per-slot counts start again from zero.
 | Method & path            | Body                                                         | Purpose                                  |
 | ------------------------ | ------------------------------------------------------------ | ---------------------------------------- |
 | `GET /schedule`          | –                                                            | Week, rules, slots, per-slot counts, privacy info |
-| `POST /bookings`         | `{ zaloName, contact, count, slots, makeup, consent: true }` | Create (201) or update (200) this week's booking |
+| `POST /bookings`         | `{ zaloName, contact, count, slots, makeupSlot, makeup, consent: true }` | Create (201) or update (200) this week's booking. `makeupSlot` (optional) is one of the week's `slotsMakeup`; `makeup` is a free-text note |
 | `POST /bookings/lookup`  | `{ contact }`                                                | The student's booking (name and sessions, never the contact) |
 | `POST /bookings/history` | `{ contact }`                                                | `{ history }`: up to 3 distinct schedules (`weekLabel`, `count`, `slots`) from earlier weeks, newest first, for the booking form to suggest. Slots only: no name, notes or contact |
 | `POST /bookings/delete`  | `{ contact }`                                                | Delete the booking and its personal data |

@@ -8,7 +8,6 @@ import type {
   HistoryResponse,
   LookupResponse,
   MemberList,
-  PastSchedule,
   ScheduleConfig,
   SubmitResponse,
 } from '@/types/booking'
@@ -22,8 +21,11 @@ export interface BookingApi {
   submitBooking(payload: BookingPayload): Promise<SubmitResponse>
   /** Finds this week's booking for a phone number or email. */
   lookupBooking(contact: string): Promise<ExistingBooking>
-  /** Schedules booked in earlier weeks with a phone number or email, newest first. */
-  bookingHistory(contact: string): Promise<PastSchedule[]>
+  /**
+   * Schedules booked in earlier weeks with a phone number or email, newest first, and whether
+   * it already has a booking this week.
+   */
+  bookingHistory(contact: string): Promise<HistoryResponse>
   /** Deletes this week's booking (and its personal data) for a phone number or email. */
   deleteBooking(contact: string): Promise<DeleteResponse>
   /**
@@ -91,13 +93,8 @@ function createHttpApi(): BookingApi {
       return data.booking
     },
 
-    async bookingHistory(contact) {
-      const data = await request<HistoryResponse>('/bookings/history', {
-        method: 'POST',
-        body: { contact },
-      })
-      return data.history
-    },
+    bookingHistory: (contact) =>
+      request<HistoryResponse>('/bookings/history', { method: 'POST', body: { contact } }),
 
     deleteBooking: (contact) =>
       request<DeleteResponse>('/bookings/delete', { method: 'POST', body: { contact } }),

@@ -50,6 +50,7 @@ const maskedContact = computed(() => maskContact(props.result.contact))
         class="mt-6"
         :slots="result.slots"
         :week-label="result.weekLabel"
+        :makeup-slot="result.makeupSlot"
         :makeup="result.makeup"
       />
 
